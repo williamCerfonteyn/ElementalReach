@@ -40,6 +40,7 @@
 ///Breaking in fireChain animation instead of doing it-- because it doesn't cause problems. may be a bit inefficient..
 ///REMEMBER TO KILL ANY PARTICLES THAT ARE OUT OF THE SCREEN FOR GOOD - LIKE MISSED KILL PARTS OR SOMETHING.
 ///FIRECHAIN KILLED BLURRING FIXED IN A WAY. MAYBE FIND A MORE EFFECTIVE WAY? FOR NOW ITS PERFECT THOUGH, AND MAYBE ITS REALLY PERFECT.
+///FIND A WAY TO REWORK LIFE INTENSITY TO BE MORE EFFECTIVE.
 
 ///DESIGN DECISION TO SPLIT FIREBALL INTO 10 SEPERATE PARTS AND THEN CHECK EACH PART FOR COLLISION. SHOTGUN FIREBALL.
 
@@ -201,8 +202,6 @@ const int FRAMES_PER_SECOND = 100; ///WINDOWS FUNCTION USED WITHIN THIS CLASS.
 const int scrollingLeverage = 5; //How far to the side does the cursor need to be for scrolling to happen.
 const float scrollSpeed = 5;
 ///
-const float displayReduction = 5; //Reduces amount of particles displayed to increase performance.
-///
 //FADE SYSTEM information:
  const float amountOfFadeDelay = 0.001;//Delays fade(Time) Seconds.
  const float rateOfFadeIn = 0.00125;//How fast it should fade (Value).
@@ -240,16 +239,23 @@ const float killParticlesCollisionLeverage = 30;
 //FIRE ELEMENTAL INFO:
 const int fireElemSize = 50;
 const int FireChainParticleSmoothMovementLevel = 10; //Higher is better.
-const int lifeDiminishingFactor = 15;
 const int fireElementalStartingPositionX = 100; //This is the starting position relative to the SCREEN.
 const int fireElementalStartingPositionY = 50; //As above.
 const int WorldStartingElementalPositionX = 0;
 const int WorldStartingElementalPositionY = 0;
-const int initialStrength = 50;
+const int initialStrength = 3000;
 const int roguePartsOnMap = 300;
 const float sizeIncreasedPerPart = 0;
 const float StartingMoveSpeedOFFireElemental = 1;
 const float fireElementalParticleHealth = 5.5;
+const float fireElementalDisplayReductionEnhancementLevel = 200;
+const float fireElementalLifeDiminishingFactor = 600;
+
+//LIFE INTENCITY INFO
+const float displayReduction = 2; //Reduces amount of particles displayed to increase performance.
+//The top value is the LOWEST AMOUNT of particles that can be shown at any given time
+const int globalDisplayReductionEnhancementLevel = 5;
+const int globalLifeDiminishingFactor = 15; //The higher this value, the LESS it is diminished on a grand scale.
 
 const float AbsorptionDelay = 5.0; //Seconds.
 
@@ -300,7 +306,7 @@ const float standardCameraStandStillDelay = 1000; //Miliseconds. Each waypoint h
 const float initiationDelayOfCameraMovement = 200; //Miliseconds. Used at the start of cinematicView.
 
 //POWER ELEMENTAL INFO:
-const int initialPowerParts = 200;
+const int initialPowerParts = 100;
 const int powerElemSize = 40;
 const float powerElementalStartPositionX = 600;
 const float powerElementalStartPositionY = 500;
@@ -1984,6 +1990,7 @@ protected:
     list<particle> nodeStrength;
     int initialPowerOfNode;
     float x;
+    int realDisplayReduction;
     void lifeIntensity();
     float y;
     bool linked; //Means the firechain is going to be connected to this Node;
@@ -1999,6 +2006,7 @@ resourceNode::resourceNode(float positionX, float positionY, int nodeS)
     y = positionY;
     initialPowerOfNode = nodeS;
     active = true;
+    realDisplayReduction = 0;
 
     for(int i = 0; i < nodeS; i++)
     {
@@ -2014,12 +2022,25 @@ resourceNode::resourceNode(float positionX, float positionY, int nodeS)
 
 void resourceNode::lifeIntensity()
 {
-    float lifeValue = (float)1/(nodeStrength.size()/lifeDiminishingFactor);
+    float lifeValue = (float)1/(nodeStrength.size()/globalLifeDiminishingFactor);
 
     for(list<particle>::iterator it = nodeStrength.begin(); it != nodeStrength.end(); ++it)
     {
         it->setLife(lifeValue);
     }
+
+    if(nodeStrength.size() > displayReduction)
+    {
+        realDisplayReduction = (nodeStrength.size()/globalDisplayReductionEnhancementLevel);
+        //realDisplayReduction /= fireParts.size();
+        realDisplayReduction += displayReduction;
+    }
+
+    else
+    {
+        realDisplayReduction = nodeStrength.size();
+    }
+
 }
 
 void resourceNode::animate()
@@ -2029,7 +2050,7 @@ void resourceNode::animate()
        // lifeIntensity();
         int displayReductionIterator = 0;
 
-        for(list<particle>::iterator it = nodeStrength.begin(); displayReductionIterator < (int)(nodeStrength.size()/displayReduction); ++it, displayReductionIterator++)
+        for(list<particle>::iterator it = nodeStrength.begin(); displayReductionIterator < realDisplayReduction; ++it, displayReductionIterator++)
         {
             it->move();
         }
@@ -2040,7 +2061,6 @@ void resourceNode::animate()
 
 particle resourceNode::drainingNode()
 {
-    lifeIntensity();
     return nodeStrength.front();
     //lifeIntensity(); Maybe not a bad idea to flush a lifeIntensity here.
 }
@@ -2060,6 +2080,7 @@ bool resourceNode::isResourceNodeEmpty()
 void resourceNode::killFirstPart()
 {
     nodeStrength.pop_front();
+    lifeIntensity();
 }
 
 class resourceSystem : public globalFunctions{
@@ -2194,6 +2215,7 @@ protected:
     int controlGroupNodeIsIn;
     bool amIConnected;
     float positionX;
+    int realDisplayReduction;
     void lifeIntensity();
     float positionY;
     bool createdByFireChain;
@@ -2286,6 +2308,7 @@ void NodeCreated::castFireBall(float mx, float my)
                     killParticles.back().setXspeed(calculateDirectionX*rateOfKillParticlesMovement+fireBallDeviationX);
                     killParticles.back().setYspeed(calculateDirectionY*rateOfKillParticlesMovement+fireBallDeviationY);
                 }
+                lifeIntensity();
             }
         }
     }
@@ -2388,6 +2411,7 @@ NodeCreated::NodeCreated()
     positionX = 0;
     controlGroupNodeIsIn = -1; //False value signifying that it isn't part of any group.
     positionY = 0;
+    realDisplayReduction = 0;
 
     spellDelay.startClock();
 
@@ -2411,11 +2435,23 @@ void NodeCreated::checkToConnectYet(float X, float Y)
 
 void NodeCreated::lifeIntensity()
 {
-    float lifeValue = (float)1/(nodeParts.size()/lifeDiminishingFactor);
+    float lifeValue = (float)1/(nodeParts.size()/globalLifeDiminishingFactor);
 
     for(list<particle>::iterator it = nodeParts.begin(); it != nodeParts.end(); ++it)
     {
         it->setLife(lifeValue);
+    }
+
+    if(nodeParts.size() > displayReduction)
+    {
+        realDisplayReduction = (nodeParts.size()/globalDisplayReductionEnhancementLevel);
+        //realDisplayReduction /= fireParts.size();
+        realDisplayReduction += displayReduction;
+    }
+
+    else
+    {
+        realDisplayReduction = nodeParts.size();
     }
 }
 
@@ -2437,7 +2473,7 @@ void NodeCreated::animate()
 
     int displayReductionIterator = 0;
 
-    for(list<particle>::iterator it = nodeParts.begin(); displayReductionIterator < (int)(nodeParts.size()/displayReduction); ++it, displayReductionIterator++)
+    for(list<particle>::iterator it = nodeParts.begin(); displayReductionIterator < realDisplayReduction; ++it, displayReductionIterator++)
     {
         it->move();
     }
@@ -3107,6 +3143,8 @@ protected:
     bool fireChainsInitiated;
     int fireChainsActivated;
 
+    int realDisplayReduction;
+
     void cleanUpOnDeath();
     void deathAnimation();
 
@@ -3308,7 +3346,7 @@ bool fireElemental::collisionWithResourceParts(int givenX, int givenY)
 
 void fireElemental::lifeIntensity()
 {
-    lifeValue = (float)1/(fireParts.size()/lifeDiminishingFactor);
+    lifeValue = (float)1/(fireParts.size()/(fireElementalLifeDiminishingFactor));
 
     for(list<particle>::iterator it = fireParts.begin(); it != fireParts.end(); ++it)
     {
@@ -3320,6 +3358,18 @@ void fireElemental::lifeIntensity()
     {
         deathAnimation();
         fireElemFireTrail.setActiveState(false);
+    }
+
+    if(fireParts.size() > displayReduction)
+    {
+        realDisplayReduction = (fireParts.size()/fireElementalDisplayReductionEnhancementLevel);
+        //realDisplayReduction /= fireParts.size();
+        realDisplayReduction += displayReduction;
+    }
+
+    else
+    {
+        realDisplayReduction = fireParts.size();
     }
 
     //fireElemFireTrail.setFireTrailSize(fireParts.size()5);
@@ -3526,7 +3576,7 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
     if(!fireParts.empty()) //scrollControl.inScreen(x,y,(fireElemSize + (fireParts.size()*sizeIncreasePerPart))) This causes a collision problem with resourceNodes. Particles have their own inScreen.
     {
         //lifeIntensity();
-        fireElemFireTrail.showFireTrail(x,y);
+        //fireElemFireTrail.showFireTrail(x,y);
 
         for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
         {
@@ -3558,7 +3608,7 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
         //for(list<particle>::iterator it = fireParts.begin(); it != fireParts.end(); ++it)
           //  it->position(x,y);
 
-        for(list<particle>::iterator it = fireParts.begin(); displayReductionIterator < (int)(fireParts.size()/displayReduction); ++it, displayReductionIterator++)
+        for(list<particle>::iterator it = fireParts.begin(); displayReductionIterator < realDisplayReduction; ++it, displayReductionIterator++)
         {
             if(it->isActive())
             {
@@ -3602,7 +3652,7 @@ fireElemental::fireElemental()
     x = WorldStartingElementalPositionX + fireElementalStartingPositionX;
     y = WorldStartingElementalPositionY + fireElementalStartingPositionY;
 
-    explosiveHit.setExplosionSize(55);
+    explosiveHit.setExplosionSize(fireElemSize+5);
     explosiveHit.setExplosionColor(1.0, 0.2, 0.2);
 
     movementSpeed = StartingMoveSpeedOFFireElemental;
@@ -3610,6 +3660,8 @@ fireElemental::fireElemental()
 
     delayPushedParticlesToNode.setDelayMili(1000/howManyParticlesShouldBePushedPerSecond);
     delayPushedParticlesToNode.startClock();
+
+    realDisplayReduction = 0;
 
     ACX = false;
     ACY = false;
@@ -3763,6 +3815,9 @@ protected:
     explosiveIgnition explosiveHit;
     void lifeIntensity();
 
+    void deathAnimation();
+
+    int realDisplayReduction;
     float whichTargetInRangeX();
     float whichTargetInRangeY();
 
@@ -3906,7 +3961,7 @@ void powerElemental::reduceHealth(float HPreduction)
 
 void powerElemental::lifeIntensity()
 {
-    float lifeValue = (float)1/(powerParts.size()/lifeDiminishingFactor);
+    float lifeValue = (float)1/(powerParts.size()/globalLifeDiminishingFactor);
 
     for(list<particle>::iterator it = powerParts.begin(); it != powerParts.end(); ++it)
     {
@@ -3915,9 +3970,24 @@ void powerElemental::lifeIntensity()
     }
 
     if(powerParts.size() <= 0)
+    {
+        deathAnimation();
         powerTrail.setActiveState(false);
+    }
 
-    powerTrail.setFireTrailSize(powerParts.size()/10);
+    if(powerParts.size() > displayReduction)
+    {
+        realDisplayReduction = (powerParts.size()/globalDisplayReductionEnhancementLevel);
+        //realDisplayReduction /= fireParts.size();
+        realDisplayReduction += displayReduction;
+    }
+
+    else
+    {
+        realDisplayReduction = powerParts.size();
+    }
+
+    //powerTrail.setFireTrailSize(powerParts.size()/10);
 }
 
 powerElemental::powerElemental()
@@ -3930,6 +4000,8 @@ powerElemental::powerElemental()
 
     delayCastLightningStrike.setDelayMili(delayBetweenLightningStrikes);
     delayCastLightningStrike.startClock();
+
+    realDisplayReduction = 0;
 
     powerTrail.setText(16);
     powerTrail.setFireTrailColor(1.0, 1.0, 1.0);
@@ -3946,11 +4018,22 @@ powerElemental::powerElemental()
         powerParts.push_back(tempPart);
     }
 
-    explosiveHit.setExplosionSize(45);
+    explosiveHit.setExplosionSize(powerElemSize+5);
     explosiveHit.setExplosionColor(0.0,0.5,1.0);
    // explosiveHit.setLightDissipation(0.05);
     lifeIntensity();
     calcPowerRadius();
+}
+
+void powerElemental::deathAnimation()
+{
+    if(powerParts.empty())
+    {
+        explosiveHit.setExplosionSize(powerElemSize*2);
+        explosiveHit.setLightDissipation(0.005);
+        explosiveHit.setPosition(x,y);
+        explosiveHit.explosiveLaunch();
+    }
 }
 
 void powerElemental::animate()
@@ -3959,7 +4042,7 @@ void powerElemental::animate()
 
     int displayReductionIterator = 0;
 
-    for(list<particle>::iterator it = powerParts.begin(); displayReductionIterator < (int)(powerParts.size()/displayReduction); ++it, displayReductionIterator++)
+    for(list<particle>::iterator it = powerParts.begin(); displayReductionIterator < realDisplayReduction; ++it, displayReductionIterator++)
         it->move();
 
     for(list<particle>::iterator it = killedParts.begin(); it != killedParts.end(); ++it)
