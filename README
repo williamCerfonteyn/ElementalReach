@@ -2,3 +2,6 @@ ElementReach
 ------------
 
 Repo for a game to test some particle theory and quantum dynamics
+
+NOTES:
+Currently this only builds on windows. Linux port is pending.
