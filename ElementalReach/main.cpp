@@ -54,6 +54,7 @@
 ///NOTES!:
 ///REFERENCETIME != 0 CONDIATION ADDED TO DELAYSOME.
 ///REMEMBER flushFireChainSmoothMovement IS REQUIRED WHEN DEALING WITH PROBLAMATIC COLLISION AND PARTICLE POSSITION.
+///Remember fire elemental death does NOT stop input from keyboard ect. Currently has no impact on the game, but please remember this.
 
 ///URGENT FIXES:
 ///NEED TO FIX DELAYSOME SETEVENTLOOP SO THAT IT STILL DELAYS AND DOESN'T JUST LET EVERYTHING THROUGH. THIS WILL MESS AROUND WITH THE TIMINGS A LITTLE, BUT IS IS A URGENT FIX.
@@ -71,7 +72,8 @@
 //Need to rewrite all arrays into a linked system with the std library.
 //Need to fix the flawed time and speed systems that is defined as 0.001 ect, because it isn't moddify friendly, something like 20 parts per seconds is better.
 //Need to fix the declaration of many particles [ARRAY PROBLEM, VOIDED WITH LINKED LISTS] in fireChains ect. (NOTE: fireChain::collisionWithNode() uses this very feature, just take into cons.)
-//Need to
+//Need to consider changing fire elemental cleanUpOnDeath to a destructor if there is going to be more than one fire elemental at one time.
+//Need to consider changing fire elemental death to have an influence on all movement/actions of the fire elemental.
 
 #include <iostream>
 #include <cstdlib>
@@ -243,7 +245,7 @@ const int fireElementalStartingPositionX = 100; //This is the starting position 
 const int fireElementalStartingPositionY = 50; //As above.
 const int WorldStartingElementalPositionX = 0;
 const int WorldStartingElementalPositionY = 0;
-const int initialStrength = 300;
+const int initialStrength = 50;
 const int roguePartsOnMap = 300;
 const float sizeIncreasedPerPart = 0;
 const float StartingMoveSpeedOFFireElemental = 1;
@@ -3053,7 +3055,7 @@ public:
     void fireChainConstruction(float mx, float my);
     void fireChainFinished(resourceSystem *RS);
     void fireChainAnimation(resourceSystem *RS); //The reason it is here is to prevent class cross interaction. Yes, we will look into design options later, but currently I'm unsure about it.
-    bool fireElementalOutOfParticles();
+    bool fireElementalDead();
 
     float getPositionX() { return x; }
     float getPositionY() { return y; }
@@ -3104,6 +3106,9 @@ protected:
 
     bool fireChainsInitiated;
     int fireChainsActivated;
+
+    void cleanUpOnDeath();
+    void deathAnimation();
 
     bool collisionOnFireElemental(float mx, float my);
     bool collisionWithResourceParts(int, int);
@@ -3164,6 +3169,18 @@ void fireElemental::reduceHealth(float HPreduction)
     }
 }
 
+//This could be converted into a destructor option when we have multiple (AI controlled) fire elementals fighting. Then killing them might be better.
+void fireElemental::cleanUpOnDeath()
+{
+    if(fireParts.empty())
+    {
+        for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
+        {
+            FCs.erase(it);
+            it = FCs.begin();
+        }
+    }
+}
 float fireElemental::observeIfKillPartsFromNCCollided(float colX, float colY)
 {
     float totalDamageDoneOnSingleTargetByAllKillParticles = 0;
@@ -3258,20 +3275,21 @@ void fireElemental::pushParticlesToCreatedNode(list<fireChain>::iterator FCsPosi
     {
         if(FCsPositionInChain->createdItsOwnNode()) //Additional protection. Theoretically will never be called because above will not return that value.
         {
-            if(!fireElementalOutOfParticles())
+            if(!fireElementalDead())
             {
                 if(delayPushedParticlesToNode.isDelayOver())
                 {
                     fireParts.back().setSize(TS);
                     FCsPositionInChain->collectPartsFromFireElemental(fireParts.back());
                     fireParts.pop_back();
+                    lifeIntensity();
                 }
             }
         }
     }
 }
 
-bool fireElemental::fireElementalOutOfParticles()
+bool fireElemental::fireElementalDead()
 {
     if(fireParts.empty())
         return true;
@@ -3298,10 +3316,13 @@ void fireElemental::lifeIntensity()
         it->setSize(fireElemSize);
     }
 
-    if(fireParts.size() <= 0)
+    if(fireParts.empty())
+    {
+        deathAnimation();
         fireElemFireTrail.setActiveState(false);
+    }
 
-    //fireElemFireTrail.setFireTrailSize(fireParts.size()/10);
+    //fireElemFireTrail.setFireTrailSize(fireParts.size()5);
 
     //fireElemFireTrail.setFireTrailColor(fireParts.size()/500, 0.1, 0.1);
 
@@ -3334,7 +3355,7 @@ void fireElemental::fireChainAnimation(resourceSystem *RS)
                             fireParts.back().setSize(TS);
                             it->givenParticle(fireParts.back());
                             fireParts.pop_back();
-
+                            lifeIntensity();
                         }
 
                         else if(it->makeDecisionToPop())
@@ -3343,6 +3364,7 @@ void fireElemental::fireChainAnimation(resourceSystem *RS)
                             {
                                 fireParts.push_back(it->passParticle());
                                 it->popPart();
+                                lifeIntensity();
                             }
                         }
                     }
@@ -3421,7 +3443,7 @@ void fireElemental::fireChainConstruction(float mx, float my)
 
 void fireElemental::fireChainFinished(resourceSystem *RS)
 {
-    if(fireChainsInitiated)
+    if(fireChainsInitiated && !fireParts.empty())
     {
         fireChainsInitiated = false;
         FCs.back().pathCompleted();
@@ -3473,6 +3495,17 @@ void fireElemental::moveY(bool activateMoveY, int multiplier = 1)
     multiplierY = multiplier;
 }
 
+void fireElemental::deathAnimation()
+{
+    if(fireParts.empty())
+    {
+        explosiveHit.setExplosionSize(fireElemSize*2);
+        explosiveHit.setLightDissipation(0.005);
+        explosiveHit.setPosition(x,y);
+        explosiveHit.explosiveLaunch();
+    }
+}
+
 void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
 {
     ///Used in the castThroughNode statement, (last line I think of this function)
@@ -3488,7 +3521,9 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
     mouseCoordinatesX = scrollControl.adjustInputValueX(mouseCoordinatesX);
     mouseCoordinatesY = scrollControl.adjustInputValueY(mouseCoordinatesY);
 
-    if(true) //scrollControl.inScreen(x,y,(fireElemSize + (fireParts.size()*sizeIncreasePerPart))) This causes a collision problem with resourceNodes. Particles have their own inScreen.
+    cleanUpOnDeath();
+
+    if(!fireParts.empty()) //scrollControl.inScreen(x,y,(fireElemSize + (fireParts.size()*sizeIncreasePerPart))) This causes a collision problem with resourceNodes. Particles have their own inScreen.
     {
         //lifeIntensity();
         fireElemFireTrail.showFireTrail(x,y);
@@ -3558,7 +3593,8 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
 
     explosiveHit.showExplosion();
 
-    Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 0, standardFontSize, true, true, "{%d}", fireParts.size());
+    if(!fireParts.empty())
+        Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 0, standardFontSize, true, true, "{%d}", fireParts.size());
 }
 
 fireElemental::fireElemental()
@@ -4353,8 +4389,12 @@ void gameController::controlGame(resourceSystem *rs, fireElemental *fe, roguePar
         pe->reduceHealth(fe->observeIfKillPartsFromNCCollided(pe->passX(),pe->passY()));
 
     pe->animate();
-    pe->getFireElemPositionAndSizeInfoAI(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem());
-    pe->castLightningStrike();
+
+    if(!fe->fireElementalDead())
+    {
+        pe->getFireElemPositionAndSizeInfoAI(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem());
+        pe->castLightningStrike();
+    }
 
     if(pe->hasLightningStruckYet())
         fe->reduceHealth(pe->lightningHasStruck(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem()));
