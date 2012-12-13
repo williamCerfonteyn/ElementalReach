@@ -2181,6 +2181,7 @@ public:
     list<particle>::iterator getStartOfKillPartList() { return killParticles.begin(); }
     list<particle>::iterator getEndOfKillPartList() { return killParticles.end(); }
     void killChosenParticle(list<particle>::iterator it);
+    bool isSelectionAboutToTakePlace(float,float);
 protected:
     list<particle> nodeParts;
     list<particle> killParticles;
@@ -2323,6 +2324,15 @@ void NodeCreated::handleSpellThrow(float mx, float my)
             break;
         }
     }
+}
+
+bool NodeCreated::isSelectionAboutToTakePlace(float Mousemx, float Mousemy)
+{
+    if(Mousemx > positionX-mouseNodePushingLeverage && Mousemx < positionX+mouseNodePushingLeverage)
+        if(Mousemy > positionY-mouseNodePushingLeverage && Mousemy < positionY+mouseNodePushingLeverage)
+            return true;
+
+    return false;
 }
 
 void NodeCreated::checkToSelect(float Mousemx, float Mousemy)
@@ -2486,6 +2496,7 @@ public:
 
     float checkCollisionWithCreatedNodeKillParts(float,float);
     void destoryTransitResourcePart();
+    bool checkIfNodeIsGoingToGetSelected(float,float);
 protected:
     list<particle> fireChainParts;
     list<particle> resourceTransitParticles;
@@ -2545,6 +2556,14 @@ float fireChain::checkCollisionWithCreatedNodeKillParts(float colX, float colY)
     }
 
     return concatenatedDamage;
+}
+
+bool fireChain::checkIfNodeIsGoingToGetSelected(float Mousemx, float Mousemy)
+{
+    if(fireChainNodeCreated)
+    {
+        return NC.isSelectionAboutToTakePlace(Mousemx, Mousemy);
+    }
 }
 
 void fireChain::checkMouseButtonLeftStatus(bool setS)
@@ -3075,6 +3094,7 @@ protected:
     int multiplierY;
     void updatePositions();
     void handleEndMapCollision();
+    bool checkIfSelectionIsTakingPlace();
 
     //We define this here, because if we define it in NC, we have to go through every version each time to set a arbitrary variable, that coud just be passed from fireElemental.
     //It seems, in other words, as redundant variables definitions when shift and control are used in the fireELemental.
@@ -3154,6 +3174,28 @@ float fireElemental::observeIfKillPartsFromNCCollided(float colX, float colY)
     return totalDamageDoneOnSingleTargetByAllKillParticles;
 }
 
+bool fireElemental::checkIfSelectionIsTakingPlace()
+{
+    int mxTemp;
+    int myTemp;
+
+    SDL_GetMouseState(&mxTemp, &myTemp);
+
+    float mx = mxTemp;
+    float my = myTemp;
+
+    mx = scrollControl.adjustInputValueX(mx);
+    my = scrollControl.adjustInputValueY(my);
+
+    for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
+    {
+        if(it->checkIfNodeIsGoingToGetSelected(mx,my))
+            return true;
+    }
+
+    return false;
+}
+
 void fireElemental::passLeftMouseButtonState(bool setS)
 {
     for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
@@ -3164,9 +3206,12 @@ void fireElemental::passLeftMouseButtonState(bool setS)
 
 void fireElemental::castSpellThroughNode(float mx, float my)
 {
-    for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
+    if(!fireChainsInitiated && !checkIfSelectionIsTakingPlace())
     {
-        it->throwSpellThroughNode(mx, my);
+        for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
+        {
+            it->throwSpellThroughNode(mx, my);
+        }
     }
 }
 
@@ -3256,7 +3301,8 @@ void fireElemental::lifeIntensity()
     if(fireParts.size() <= 0)
         fireElemFireTrail.setActiveState(false);
 
-    fireElemFireTrail.setFireTrailSize(fireParts.size()/5);
+    //fireElemFireTrail.setFireTrailSize(fireParts.size()/10);
+
     //fireElemFireTrail.setFireTrailColor(fireParts.size()/500, 0.1, 0.1);
 
 //void fireTrailLength(float fadingTrail) { trailFade = fadingTrail; }
@@ -3895,7 +3941,7 @@ void powerElemental::animate()
         it->animate();
 
 
-    powerTrail.showFireTrail(x,y);
+    //powerTrail.showFireTrail(x,y);
     explosiveHit.showExplosion();
 
     if(powerParts.size() > 0)
@@ -4224,7 +4270,6 @@ void limitFrameRates::limitingFrameRates()
         timeTakenToIterate = SDL_GetTicks();
         //Sleep(frameRate - (timeTakenToIterate-timePositionReference)); ///WINDOWS FUNCTIONS.
     }
-
 
     calculationRealFramesPerSecond();
 
