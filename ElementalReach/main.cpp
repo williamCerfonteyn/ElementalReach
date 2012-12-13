@@ -181,7 +181,7 @@ const int PositionLeftObjectsForInfoText = 35;
 
 ///Prining system (NotificationSystem)
 const int MaxConvoLines = 100; //Max lines that can be pushed into one object of convo.
-const int lineSpacing = 15; //The space between lines as they are printed.
+const int lineSpacing = 15; //The space between lines as they are fed.
 const int maxDelayTime = 5000; //Milisecond delay for the lines to appear in world method drawing.
 
 const float standardFontSize = 1; //1 is standard. 2 is double 1's size. Use floating values to adjust accordingly.
@@ -1239,18 +1239,56 @@ void BuildFont()
     }
 }
 //Copied from template.
-void Print(int x, int y, int set, float fontSize, bool opaque, char *string, ... )
+void Print(int x, int y, int set, float fontSize, bool opaque, bool notAlwaysInscreen, char *string, ... )
 {
     va_list ap;
     char text[128];
 
-    if(scrollControl.inScreen(x,y,5))
+    if(notAlwaysInscreen)
+    {
+        if(scrollControl.inScreen(x,y,5))
+        {
+            x = scrollControl.drawInRelationToScreenX(x);
+            y = scrollControl.drawInRelationToScreenY(y);
+
+            if(opaque && GLOBAL_VISIBILITY_OF_GAME_CONTENTS >= 1)
+                glColor4f(1.0, 1.0, 1.0, 1.0);
+
+            if(string == NULL)
+                return ;
+
+            va_start(ap, string);
+            vsprintf(text, string, ap);
+                va_end(ap);
+
+            if(set > 1)
+                set = 1;
+
+            glBindTexture(GL_TEXTURE_2D, texture[2]); //We need to use the font texture with the cords we set in buildfont to have letters.
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glLoadIdentity();
+            glTranslatef(x,y,0);
+
+            glListBase( fontText - 32 + (128 * set) ); /*Ok lets explain. So we - 32 because the first 32 lists we never built - its not included
+            in the texture font i suppose. Then we + (128 * set) because there is actually only 128 symbols/letters, thus when we go over it for eg
+            156 its just differnt font style. Thus when set is 1 its a differnt font style then when set is 0(BOLD). that is also why we can only
+            have 128 letters - text[128] - because if we had more we give the opertunity to go from font styles we going over 128's style. Hope
+            you understand more now :) */
+
+            glScalef(fontSize, fontSize, fontSize);
+
+
+            glCallLists(strlen(text), GL_BYTE, text);
+            glEnable(GL_DEPTH_TEST);
+            glDisable(GL_BLEND);
+        }
+    }
+
+    else if(!notAlwaysInscreen)
     {
         if(opaque && GLOBAL_VISIBILITY_OF_GAME_CONTENTS >= 1)
             glColor4f(1.0, 1.0, 1.0, 1.0);
-
-        x = scrollControl.drawInRelationToScreenX(x);
-        y = scrollControl.drawInRelationToScreenY(y);
 
         if(string == NULL)
             return ;
@@ -1268,14 +1306,9 @@ void Print(int x, int y, int set, float fontSize, bool opaque, char *string, ...
         glLoadIdentity();
         glTranslatef(x,y,0);
 
-        glListBase( fontText - 32 + (128 * set) ); /*Ok lets explain. So we - 32 because the first 32 lists we never built - its not included
-        in the texture font i suppose. Then we + (128 * set) because there is actually only 128 symbols/letters, thus when we go over it for eg
-        156 its just differnt font style. Thus when set is 1 its a differnt font style then when set is 0(BOLD). that is also why we can only
-        have 128 letters - text[128] - because if we had more we give the opertunity to go from font styles we going over 128's style. Hope
-        you understand more now :) */
+        glListBase( fontText - 32 + (128 * set) );
 
         glScalef(fontSize, fontSize, fontSize);
-
 
         glCallLists(strlen(text), GL_BYTE, text);
         glEnable(GL_DEPTH_TEST);
@@ -1373,7 +1406,7 @@ void notificationSystem::speak()
 
             else normalPrintingMethod();
 
-            Print(scrollControl.drawInRelationToScreenX(x), scrollControl.drawInRelationToScreenY(y+i*lineSpacing), 1, standardFontSize, false, conversation[i]);
+            Print(scrollControl.drawInRelationToScreenX(x), scrollControl.drawInRelationToScreenY(y+i*lineSpacing), 1, standardFontSize, false, true, conversation[i]);
         }
     }
 }
@@ -1999,7 +2032,7 @@ void resourceNode::animate()
             it->move();
         }
 
-        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, "{%d}", nodeStrength.size()); //< max, not <=. Thus not +1 anymore.
+        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", nodeStrength.size()); //< max, not <=. Thus not +1 anymore.
     }
 }
 
@@ -2398,7 +2431,7 @@ void NodeCreated::animate()
     }
 
     explodingLaunch.showExplosion();
-    Print(positionX-PositionLeftObjectsForInfoText,positionY-PositionAboveObjectsForInfoText, 0, standardFontSize, true, "{%d}", nodeParts.size());
+    Print(positionX-PositionLeftObjectsForInfoText,positionY-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", nodeParts.size());
 }
 
 class fireChain : public globalFunctions { //Yes, not every function is used, but the radius one is, may not be neccesary but o well, vs 1.1's problem :P
@@ -3479,7 +3512,7 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
 
     explosiveHit.showExplosion();
 
-    Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 0, standardFontSize, true, "{%d}", fireParts.size());
+    Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 0, standardFontSize, true, true, "{%d}", fireParts.size());
 }
 
 fireElemental::fireElemental()
@@ -3866,7 +3899,7 @@ void powerElemental::animate()
     explosiveHit.showExplosion();
 
     if(powerParts.size() > 0)
-        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, "{%d}", powerParts.size());
+        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", powerParts.size());
 }
 
 class preGameSystem {
@@ -4177,16 +4210,21 @@ limitFrameRates::limitFrameRates()
 
 void limitFrameRates::displayRealFramesPerSecond()
 {
-    //Obviously only the vs 1.0 state. Pointless adding another check for only one seond. (if == 0, don't display)
-    cout << "\nFrames Per Second: " << currentFrameRate;
+    //cout << "\nFrames Per Second: " << currentFrameRate; Previous version of showing frameRate.
+    Print(0,0,0,standardFontSize,true,false,"FPS: [%d]", currentFrameRate);
 }
 
 void limitFrameRates::limitingFrameRates()
 {
     timeTakenToIterate = SDL_GetTicks();
 
-    if((timeTakenToIterate-timePositionReference) < frameRate)
-        Sleep(frameRate - (timeTakenToIterate-timePositionReference)); ///WINDOWS FUNCTIONS.
+    //Simpler just defining it like this, than trying to modify delaySome to also be able to do this for one case. If more cases occur, an addition to DS may be neccesary.
+    while((timeTakenToIterate-timePositionReference) < frameRate)
+    {
+        timeTakenToIterate = SDL_GetTicks();
+        //Sleep(frameRate - (timeTakenToIterate-timePositionReference)); ///WINDOWS FUNCTIONS.
+    }
+
 
     calculationRealFramesPerSecond();
 
@@ -4591,7 +4629,7 @@ int main (int argc, char** argv)
 
          //       scrollControl.shakeCameraInitiation(30, 20);
 
-            //LFR.displayRealFramesPerSecond();
+            LFR.displayRealFramesPerSecond();
             scrollControl.shakeCamera();
             /*
             if(testDelay.isDelayOver())
