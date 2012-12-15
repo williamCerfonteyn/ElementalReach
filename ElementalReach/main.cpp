@@ -4133,10 +4133,10 @@ void button::manageMouseCollision(float mx, float my)
 
                 glBindTexture(GL_TEXTURE_2D, texture[colouredInText]);
                 glBegin(GL_QUADS);
-                glTexCoord2f(0.0,0.0); glVertex3f(x-xDist, y-yDist, 0.0);
-                glTexCoord2f(1.0,0.0); glVertex3f(x+xDist, y-yDist, 0.0);
-                glTexCoord2f(1.0,1.0); glVertex3f(x+xDist, y+yDist, 0.0);
-                glTexCoord2f(0.0,1.0); glVertex3f(x-xDist, y+yDist, 0.0);
+                glTexCoord2f(0.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(x-xDist), scrollControl.drawInRelationToScreenY(y-yDist), 0.0);
+                glTexCoord2f(1.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(x+xDist), scrollControl.drawInRelationToScreenY(y-yDist), 0.0);
+                glTexCoord2f(1.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(x+xDist), scrollControl.drawInRelationToScreenY(y+yDist), 0.0);
+                glTexCoord2f(0.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(x-xDist), scrollControl.drawInRelationToScreenY(y+yDist), 0.0);
                 //glTexCoord2f(0.0,0.0); glVertex3f(xCords-xDist/2, yCords-yDist/2, 0.0);
                 glEnd();
 
@@ -4172,9 +4172,9 @@ void button::drawButton()
     else notFullyFadedInYet = true;
 
     if(variableFadeIn < 1 || !active && !hasGameStartedYet)
-        Print(indentionOnTextToButton,y-8,1,standardFontSize, false, false, textOnButton);
+        Print(indentionOnTextToButton,y-8,1,standardFontSize, false, true, textOnButton);
 
-    else Print(indentionOnTextToButton,y-8,1,standardFontSize, true, false, textOnButton);
+    else Print(indentionOnTextToButton,y-8,1,standardFontSize, true, true, textOnButton);
 
     if(hasGameStartedYet && variableFadeIn > 0)
         variableFadeIn -= 0.001;
