@@ -41,6 +41,7 @@
 ///REMEMBER TO KILL ANY PARTICLES THAT ARE OUT OF THE SCREEN FOR GOOD - LIKE MISSED KILL PARTS OR SOMETHING.
 ///FIRECHAIN KILLED BLURRING FIXED IN A WAY. MAYBE FIND A MORE EFFECTIVE WAY? FOR NOW ITS PERFECT THOUGH, AND MAYBE ITS REALLY PERFECT.
 ///FIND A WAY TO REWORK LIFE INTENSITY TO BE MORE EFFECTIVE.
+///NEED TO MAKE A MAP EDITOR.
 
 ///DESIGN DECISION TO SPLIT FIREBALL INTO 10 SEPERATE PARTS AND THEN CHECK EACH PART FOR COLLISION. SHOTGUN FIREBALL.
 
@@ -144,13 +145,16 @@ freopen("CONIN$", "rb", stdin);
 /*...*/
 }
 
+
+#define REMOVE_INTRO_FOR_DEBUGGING
+
 ///I UNDERSTAND THE PRACTISE OF USING GLOBAL VARIABLES ARE VERY FAULTY, YET I FEEL THERE ARE A PLACE FOR THEM. ONCE I LEARN MORE DYNAMIC AND ADVANCED DESIGN, I WILL PROHIBIT MYSELF FROM
 ///THE TEMPTATION LEADING TO CERTAIN DEATH OF HIGHER LEVEL PROGRAMS.
 
 float GLOBAL_VISIBILITY_OF_GAME_CONTENTS = 1; ///IT'S USED BECAUSE OF HOW EASY IT FITS INTO THE STRUCTURE, HOW SIMPLE IT IS TO USE
 ///AND HOW THERE CAN BE VIRTUALLY NO CONFLICTS BECAUSE OF THE EXTENSIVE NAME ASWELL AS THE LIMITED USE IN PARTICLES. ONE COULD HAVE USED MULTIPLE FUNCTION PARAMETERS AS IN RESOURCESYTEM *RS
 ///BUT THIS SEEMED MORE LOGICAL AND LESS PRONE TO FAILURE. IF THIS IS HIGHLY FAULTY, THIS WILL BE CHANGED.
-///ONLY 2 CLSSES AND ONE FUNCTION (NON PARTICLE) USE THIS VALUE: PARTICLE AND FADE. AND PRINT.
+///ONLY 3 CLSSES AND ONE FUNCTION (NON PARTICLE) USE THIS VALUE: PARTICLE AND FADE. AND PRINT. ALSO BUTTON FROM MENU SYSTEM. WE COULD MAYBE CONVERT TO PARTICLE SYSTEM LATER TO AVOID THIS
 
 /*
 ///I FEEL QUITE DISTRAUGHT USING THESE GLOBALS, YET I FEEL THAT A DIFFERNT APPROCH USING THE CURRENT GAME DESIGN WILL CREATE MORE PROBLEMS THAN SOLUTIONS.
@@ -165,12 +169,11 @@ bool SHIFT_DOWN = false;
 int SW = 850; ///VERY IMPORTANT, THEY ARE NOT CONSTANT, AS THE SCREEN IS RESIZABLE.
 int SH = 560;
 
-//#define REMOVE_INTRO_FOR_DEBUGGING
-
 int beforeResizeSW = SW;
 int beforeResizeSH = SH;
 
-const int TextNum = 22; ///Number of textures used.
+const int LINE_WIDTH_ = 5;
+const int TextNum = 24; ///Number of textures used.
 
 //Cursor info:
 const int amountOfCursorParts = 5;
@@ -243,7 +246,7 @@ const int fireElementalStartingPositionX = 100; //This is the starting position 
 const int fireElementalStartingPositionY = 50; //As above.
 const int WorldStartingElementalPositionX = 0;
 const int WorldStartingElementalPositionY = 0;
-const int initialStrength = 3000;
+const int initialStrength = 100;
 const int roguePartsOnMap = 300;
 const float sizeIncreasedPerPart = 0;
 const float StartingMoveSpeedOFFireElemental = 1;
@@ -306,10 +309,10 @@ const float standardCameraStandStillDelay = 1000; //Miliseconds. Each waypoint h
 const float initiationDelayOfCameraMovement = 200; //Miliseconds. Used at the start of cinematicView.
 
 //POWER ELEMENTAL INFO:
-const int initialPowerParts = 100;
+const int initialPowerParts = 300;
 const int powerElemSize = 40;
-const float powerElementalStartPositionX = 600;
-const float powerElementalStartPositionY = 500;
+const float powerElementalStartPositionX = 900;
+const float powerElementalStartPositionY = 900;
 const float powerRadiusDefaultSize = 2;
 //LIGHTNING STRIKE INFO:
 const float delayBetweenLightningStrikes = 3000; //Miliseconds. Time between each strike may be casted.
@@ -321,7 +324,7 @@ const int IntroParticleSaturation = 300; //Very similar to rogue parts on the ma
 const int maxSpeedIntroParticlesCanMove = 10; //How fast they will swirl about the map. :)
 
 const float speedDistributionOfIntroParts = 0.05; //The lower, the less distributed the speed will be.
-const int maxSpeedOfFadeInGameNameParts = 20;
+const int maxSpeedOfFadeInGameNameParts = 40; //The higher the number, the lower the speed of fade in is.
 const float speedDistributionOfFadingInGameNameParts = 0.05;
 
 const float rateOfVisiblityIntroPlay = 0.0005; //The higher the number, the quicker it plays.
@@ -1190,6 +1193,8 @@ bool loadTextures()
     if(!(textureImages[19] = IMG_Load("LightningAlpha.png"))) return false;
     if(!(textureImages[20] = IMG_Load("Lightning2Alpha.png"))) return false;
     if(!(textureImages[21] = IMG_Load("Lightning3Alpha.png"))) return false;
+    if(!(textureImages[22] = IMG_Load("MenuBorderButtonsAlpha.png"))) return false;
+    if(!(textureImages[23] = IMG_Load("MenuColouredInButtonAlpha.png"))) return false;
 
     glGenTextures(TextNum, texture);
 
@@ -1246,7 +1251,7 @@ void BuildFont()
         glEndList(); //And then we end the list, so we can start a new one or be done building the font;
     }
 }
-//Copied from template.
+//Copied from template. Not all of it.
 void Print(int x, int y, int set, float fontSize, bool opaque, bool notAlwaysInscreen, char *string, ... )
 {
     va_list ap;
@@ -1462,7 +1467,7 @@ int initGL( )
     /* Enable smooth shading */
     glShadeModel( GL_SMOOTH );
 
-    glLineWidth(2);
+    glLineWidth(LINE_WIDTH_);
 
     srand(time(NULL));
 
@@ -2055,7 +2060,7 @@ void resourceNode::animate()
             it->move();
         }
 
-        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", nodeStrength.size()); //< max, not <=. Thus not +1 anymore.
+        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 1, standardFontSize, true, true, "{%d}", nodeStrength.size()); //< max, not <=. Thus not +1 anymore.
     }
 }
 
@@ -2479,7 +2484,7 @@ void NodeCreated::animate()
     }
 
     explodingLaunch.showExplosion();
-    Print(positionX-PositionLeftObjectsForInfoText,positionY-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", nodeParts.size());
+    Print(positionX-PositionLeftObjectsForInfoText,positionY-PositionAboveObjectsForInfoText, 1, standardFontSize, true, true, "{%d}", nodeParts.size());
 }
 
 class fireChain : public globalFunctions { //Yes, not every function is used, but the radius one is, may not be neccesary but o well, vs 1.1's problem :P
@@ -3576,7 +3581,7 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
     if(!fireParts.empty()) //scrollControl.inScreen(x,y,(fireElemSize + (fireParts.size()*sizeIncreasePerPart))) This causes a collision problem with resourceNodes. Particles have their own inScreen.
     {
         //lifeIntensity();
-        //fireElemFireTrail.showFireTrail(x,y);
+        fireElemFireTrail.showFireTrail(x,y);
 
         for(list<fireChain>::iterator it = FCs.begin(); it != FCs.end(); ++it)
         {
@@ -3644,7 +3649,7 @@ void fireElemental::animation(rogueParts *RPs, resourceSystem *RS)
     explosiveHit.showExplosion();
 
     if(!fireParts.empty())
-        Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 0, standardFontSize, true, true, "{%d}", fireParts.size());
+        Print(x-PositionLeftObjectsForInfoText-3,y-PositionAboveObjectsForInfoText-10, 1, standardFontSize, true, true, "{%d}", fireParts.size());
 }
 
 fireElemental::fireElemental()
@@ -4064,12 +4069,216 @@ void powerElemental::animate()
     explosiveHit.showExplosion();
 
     if(powerParts.size() > 0)
-        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 0, standardFontSize, true, true, "{%d}", powerParts.size());
+        Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 1, standardFontSize, true, true, "{%d}", powerParts.size());
+}
+
+class button {
+public:
+    button(float tx, float ty, float txDist, float tyDist, char *txt, bool);
+    void drawButton();
+    bool isSelected() { return selected; }
+    void manageMouseCollision(float mx, float my);
+    void addToIndentionOnTextToButton(float addedVal) { indentionOnTextToButton += addedVal; }
+    void checkMenuState(bool LGS) { hasGameStartedYet = LGS; }
+protected:
+    float x;
+    float y;
+    float xDist;
+    float yDist;
+    bool active; //Greyed out buttons, showing whats still to come.
+    bool selected;
+    bool hasGameStartedYet;
+    float indentionOnTextToButton;
+    bool notFullyFadedInYet;
+    char *textOnButton; //Very unlikely that this wil cause a problem, but because of the nature of Print, we simply do not have another choice.
+    int buttonText;
+    int colouredInText;
+
+    float variableFadeIn;
+};
+
+button::button(float tx, float ty, float txDist, float tyDist, char *txt, bool act = true)
+{
+    x = tx;
+    y = ty;
+
+    variableFadeIn = 0;
+    notFullyFadedInYet = true;
+    hasGameStartedYet = false;
+
+    xDist = txDist/2;
+    yDist = tyDist/2;
+
+    buttonText = 22;
+    colouredInText = 23;
+    textOnButton = txt;
+
+
+    indentionOnTextToButton = x-xDist+35;
+
+    selected = false;
+    active = act;
+}
+
+void button::manageMouseCollision(float mx, float my)
+{
+    if(active)
+    {
+        if(mx > x-xDist && mx < x+xDist)
+            if(my > y-yDist && my < y+yDist)
+            {
+                glLoadIdentity();
+                glColor4f(1.0,1.0,1.0, variableFadeIn*0.7);
+                glEnable(GL_BLEND);
+
+                glBindTexture(GL_TEXTURE_2D, texture[colouredInText]);
+                glBegin(GL_QUADS);
+                glTexCoord2f(0.0,0.0); glVertex3f(x-xDist, y-yDist, 0.0);
+                glTexCoord2f(1.0,0.0); glVertex3f(x+xDist, y-yDist, 0.0);
+                glTexCoord2f(1.0,1.0); glVertex3f(x+xDist, y+yDist, 0.0);
+                glTexCoord2f(0.0,1.0); glVertex3f(x-xDist, y+yDist, 0.0);
+                //glTexCoord2f(0.0,0.0); glVertex3f(xCords-xDist/2, yCords-yDist/2, 0.0);
+                glEnd();
+
+                glDisable(GL_BLEND);
+
+                selected = true;
+            }
+        else selected = false;
+    }
+}
+
+//Drawn from the middle.
+void button::drawButton()
+{
+    glLoadIdentity();
+    glColor4f(1.0,1.0,1.0, variableFadeIn*0.7);
+    glEnable(GL_BLEND);
+
+    glBindTexture(GL_TEXTURE_2D, texture[buttonText]);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(x-xDist), scrollControl.drawInRelationToScreenY(y-yDist), 0.0);
+    glTexCoord2f(1.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(x+xDist), scrollControl.drawInRelationToScreenY(y-yDist), 0.0);
+    glTexCoord2f(1.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(x+xDist), scrollControl.drawInRelationToScreenY(y+yDist), 0.0);
+    glTexCoord2f(0.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(x-xDist), scrollControl.drawInRelationToScreenY(y+yDist), 0.0);
+    //glTexCoord2f(0.0,0.0); glVertex3f(xCords-xDist/2, yCords-yDist/2, 0.0);
+    glEnd();
+
+    glDisable(GL_BLEND);
+
+    if(variableFadeIn < 1 && !hasGameStartedYet)
+        variableFadeIn+= 0.001;
+
+    else notFullyFadedInYet = true;
+
+    if(variableFadeIn < 1 || !active && !hasGameStartedYet)
+        Print(indentionOnTextToButton,y-8,1,standardFontSize, false, false, textOnButton);
+
+    else Print(indentionOnTextToButton,y-8,1,standardFontSize, true, false, textOnButton);
+
+    if(hasGameStartedYet && variableFadeIn > 0)
+        variableFadeIn -= 0.001;
+}
+
+class menuSystem {
+public:
+    menuSystem();
+    void drawMenu(fade *fs);
+    void mouseButtonLeftClicked(bool MBLC) { leftClickedMouseButton = MBLC; }
+    bool isMenuSystemDisabledYet() { return menuSystemDisabled; }
+protected:
+    delaySome delayMenuPopup;
+    button *buttons[3]; //No need to be fancy :) Pointers so that we can use the constructor.
+    int totalButtons;
+    bool leftClickedMouseButton;
+    void fadeOutLetGameStart(fade*fs);
+    bool letGameStart;
+    bool menuSystemDisabled;
+};
+
+menuSystem::menuSystem()
+{
+    leftClickedMouseButton = false;
+    letGameStart = false;
+    menuSystemDisabled = false;
+
+    delayMenuPopup.setDelayMili(8000);
+    delayMenuPopup.setDelayAsEventBased();
+    delayMenuPopup.startClock();
+
+    //This could be made more fancy like notificationSystem where you just .addNewButton. Since its only 3 buttons, i do not see the purpose in such a "complex" system.
+    buttons[0] = new button(400,300,300,80,"Play Alpha Game");
+    buttons[1] = new button(400,390,300,80,"Play Story",false);
+    buttons[2] = new button(400,480,300,80,"Exit");
+
+    buttons[1]->addToIndentionOnTextToButton(15);
+    buttons[2]->addToIndentionOnTextToButton(85);
+
+    totalButtons = 3;
+}
+
+void menuSystem::fadeOutLetGameStart(fade *FS)
+{
+    if(letGameStart && !menuSystemDisabled)
+    {
+        FS->out();
+
+        if(FS->fadedOut())
+            menuSystemDisabled = true;
+    }
+}
+
+void menuSystem::drawMenu(fade*fs)
+{
+    if(delayMenuPopup.isDelayOver())
+    {
+        delayMenuPopup.setLoopEvent();
+
+        int mxTemp;
+        int myTemp;
+
+        SDL_GetMouseState(&mxTemp, &myTemp);
+
+        float mx = mxTemp;
+        float my = myTemp;
+
+        mx = scrollControl.adjustInputValueX(mx);
+        my = scrollControl.adjustInputValueY(my);
+
+        for(int i = 0; i < totalButtons; i++)
+        {
+            buttons[i]->manageMouseCollision(mx, my);
+            buttons[i]->drawButton();
+            buttons[i]->checkMenuState(letGameStart);
+
+            if(leftClickedMouseButton && buttons[i]->isSelected() && !menuSystemDisabled) //Not the best design for menySystemDisabled, earlier on means less performance strain.
+            {
+                switch(i)
+                {
+                    case 0:
+                        letGameStart = true;
+                        break;
+                    case 1:
+                        break;
+                    case 2:
+                        Quit(0);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        fadeOutLetGameStart(fs);
+    }
+
+    //The following may be arguable design, yet polymorphic classes or any other design can not execute what is required. It may be this design(Menu system) itself thats lacking.
 }
 
 class preGameSystem {
 public:
     preGameSystem();
+    menuSystem *MS; //A bit of a hack but menuSystem is also a very parental system, and should not be considered a lesser to preGameSystem, actually the contrary. A fix for later.
     void setIntroToPlay(bool SIP = true) { shouldIntroPlay = SIP; }
     bool preGameSystemStillInEffect() { return preGameSystemActivated; }
     void animate(fade *);
@@ -4089,19 +4298,18 @@ protected:
 preGameSystem::preGameSystem()
 {
     shouldIntroPlay = true;
+    MS = new menuSystem;
+
+    preGameSystemActivated = false;
     #ifdef REMOVE_INTRO_FOR_DEBUGGING //Used define, because it stands out of the other ifs.
     preGameSystemActivated = true;
     #endif
+
     visibilityEffect = 0;
     visibilityDelay.setDelay(0.00001/rateOfVisiblityIntroPlay);
     //visibilityDelay.setDelayAsEventBased(true);
     visibilityDelay.startClock(); //0.001/rateOfVisiblityIntroPlay
    // visibilityDelay.setLoopEvent();
-
-    tempDelayForPreviewOnlyRemoveWhenMenuSystemIsAdded.setDelay(13); //After 10 sec it will see it as though this event should start ending.
-    tempDelayForPreviewOnlyRemoveWhenMenuSystemIsAdded.startClock();
-    tempDelayForPreviewOnlyRemoveWhenMenuSystemIsAdded.setDelayAsEventBased();
-    tempDelayForPreviewOnlyRemoveWhenMenuSystemIsAdded.setLoopEvent();
 
     float tempSpeedDistrX;
     float tempSpeedDistrY;
@@ -4175,7 +4383,7 @@ void preGameSystem::animate(fade *FS) //Could also have declared a fade in the p
           //  else
           //      gameName[i]->position(scrollControl.drawInRelationToScreenX(scrollControl.adjustInputValueX(SW/4+(i-7)*LetterDistanceAtGameNamePrint),scrollControl.drawInRelationToScreenY(scrollControl.adjustInputValueY(SH/3)));
 
-            //gameName[i]->setLife(visibilityEffect);
+            //gameName[i]->setLife(visibilityEffect*2);
             gameName[i]->move();
         }
     }
@@ -4187,12 +4395,8 @@ void preGameSystem::animate(fade *FS) //Could also have declared a fade in the p
             visibilityEffect += rateOfVisiblityIntroPlay;
         }
 
-    if(tempDelayForPreviewOnlyRemoveWhenMenuSystemIsAdded.isDelayOver())
-    {
-        FS->out();
-        if(FS->fadedOut())
-            preGameSystemActivated = false;
-    }
+    if(MS->isMenuSystemDisabledYet())
+        preGameSystemActivated = false;
 }
 
 void handleKeyPress( SDL_keysym *keysym, fireElemental *FE )
@@ -4303,7 +4507,7 @@ void KeyUpEvents( SDL_keysym *keysym, fireElemental *FE) //Will be defined for t
     }
 }
 
-void mouseEvents(SDL_Event *eventx, fireElemental *FE)
+void mouseEvents(SDL_Event *eventx, fireElemental *FE, menuSystem *MS)
 {
     int mxTemp;
     int myTemp;
@@ -4318,6 +4522,7 @@ void mouseEvents(SDL_Event *eventx, fireElemental *FE)
 
     if(eventx->button.button == SDL_BUTTON_LEFT)
     {
+        MS->mouseButtonLeftClicked(true);
         FE->fireChainConstruction(mx,my);
         FE->passLeftMouseButtonState(true); ///THE POSITION OF THIS LINE RELATIVE TO THE CASTSPELLTHROUGHNODE ONE, DOES MATTER! IF BELOW, WE PROBABLY HAVE A LITTLE DELAY ON CASTING(GUESS).
         FE->nodeSelectionToCheck(mx, my);
@@ -4329,8 +4534,9 @@ void mouseEvents(SDL_Event *eventx, fireElemental *FE)
     }
 }
 
-void mouseUp(SDL_Event *eventx, fireElemental *FE, resourceSystem *RS)
+void mouseUp(SDL_Event *eventx, fireElemental *FE, resourceSystem *RS, menuSystem *MS)
 {
+    MS->mouseButtonLeftClicked(false);
     FE->fireChainFinished(RS);
     FE->passLeftMouseButtonState(false);
 
@@ -4376,7 +4582,7 @@ limitFrameRates::limitFrameRates()
 void limitFrameRates::displayRealFramesPerSecond()
 {
     //cout << "\nFrames Per Second: " << currentFrameRate; Previous version of showing frameRate.
-    Print(0,0,0,standardFontSize,true,false,"FPS: [%d]", currentFrameRate);
+    Print(0,0,1,standardFontSize,true,false,"FPS:[%d]", currentFrameRate);
 }
 
 void limitFrameRates::limitingFrameRates()
@@ -4452,15 +4658,32 @@ void animateCursor::cursorMove()
     }
 }
 
+void resetGame(resourceSystem *RS, fireElemental *FEx, rogueParts *RPx, powerElemental *PEx)
+{
+    delete FEx;
+    delete RPx;
+    delete PEx;
+    delete RS;
+}
+
+void buildGame(resourceSystem *RS, fireElemental *FEx, rogueParts *RPx, powerElemental *PEx)
+{
+    RS = new resourceSystem;
+    FEx = new fireElemental;
+    RPx = new rogueParts;
+    PEx = new powerElemental;
+}
+
 class gameController {
 public:
     //gameController();
-    void controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, animateCursor ac, powerElemental *pe);
+    void controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe);
 private:
 };
 
-void gameController::controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, animateCursor ac, powerElemental *pe)
+void gameController::controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe)
 {
+    //Cursor was removed because its also needed in the menu system.
     fe->updates();
 
     fe->animation(rp, rs);
@@ -4482,8 +4705,11 @@ void gameController::controlGame(resourceSystem *rs, fireElemental *fe, roguePar
     if(pe->hasLightningStruckYet())
         fe->reduceHealth(pe->lightningHasStruck(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem()));
 
-    if(scrollControl.CV.isFullyOutCinematicView())
-        ac.cursorMove(); //So that it doesn't get blended by anything to become invisible;
+    //if(fe->fireElementalDead() || !pe->stillAlive())
+    //{
+    //    resetGame(rs,fe,rp,pe);
+    //    buildGame(rs,fe,rp,pe);
+    //}
 }
 
 int main (int argc, char** argv)
@@ -4492,7 +4718,6 @@ int main (int argc, char** argv)
     limitFrameRates LFR;
 
     animateCursor AC;
-    resourceSystem RS;
 
     gameController GC;
     preGameSystem PGS;
@@ -4501,11 +4726,12 @@ int main (int argc, char** argv)
 
     delaySome testDelay;
 
-    testDelay.setDelay(20);
-    testDelay.startClock();
-    testDelay.setDelayAsEventBased(true);
+    //testDelay.setDelay(20);
+    //testDelay.startClock();
+    //testDelay.setDelayAsEventBased(true);
 
     delaySome DS;
+
 /*
     notificationSystem NS(true, 6, 6);
     NS.setPosition(SW/4, SH/2);
@@ -4565,10 +4791,15 @@ int main (int argc, char** argv)
     fireElemental *FEx;
     rogueParts *RPx;
     powerElemental *PEx;
+    resourceSystem *RS;
 
+    RS = new resourceSystem;
     FEx = new fireElemental;
     RPx = new rogueParts;
     PEx = new powerElemental;
+
+    //buildGame(RS, FEx, RPx, PEx);
+    //resetGame(RS, FEx, RPx, PEx);
 
     float tempConvertX = 0;
     float tempConvertY = 0;
@@ -4735,12 +4966,12 @@ int main (int argc, char** argv)
                 KeyUpEvents( &event.key.keysym, FEx );
                 break;
             case SDL_MOUSEBUTTONDOWN:
-                //if(!PGS.preGameSystemStillInEffect())
-                    mouseEvents(&event, FEx);
+               // if(!PGS.preGameSystemStillInEffect())
+                    mouseEvents(&event, FEx, PGS.MS);
                 break;
             case SDL_MOUSEBUTTONUP:
                 //if(!PGS.preGameSystemStillInEffect())
-                    mouseUp(&event, FEx, &RS);
+                    mouseUp(&event, FEx, RS, PGS.MS);
                 break;
 			case SDL_QUIT:
 			    /* handle quit requests */
@@ -4771,15 +5002,15 @@ int main (int argc, char** argv)
           //      }
           //  }
 
-            //if(!PGS.preGameSystemStillInEffect())
-                GC.controlGame(&RS, FEx, RPx, AC, PEx);
+            if(!PGS.preGameSystemStillInEffect())
+                GC.controlGame(RS, FEx, RPx, PEx);
 
-          //  else if(PGS.preGameSystemStillInEffect())
-             //   PGS.animate(&fadeSystem); //Since it uses a global variable it is not neccesary to pass a pointer, but we do anyway.
+            else if(PGS.preGameSystemStillInEffect())
+                PGS.animate(&fadeSystem); //Since it uses a global variable it is not neccesary to pass a pointer, but we do anyway.
 
-           // if(!PGS.preGameSystemStillInEffect())
-             //   if(!fadeSystem.fadedIn()) //Additional protection.
-                  //  fadeSystem.in();
+            if(!PGS.preGameSystemStillInEffect())
+                if(!fadeSystem.fadedIn()) //Additional protection.
+                    fadeSystem.in();
 
 
 
@@ -4799,20 +5030,17 @@ int main (int argc, char** argv)
 
             LFR.displayRealFramesPerSecond();
             scrollControl.shakeCamera();
+
+            PGS.MS->drawMenu(&fadeSystem);
             /*
-            if(testDelay.isDelayOver())
-            {
-                Sleep(1000);
-                scrollControl.CV.addNewWaypoint(1000, 1000);
-                scrollControl.CV.addNewWaypoint(200, 1000);
-                scrollControl.CV.addNewWaypoint(800, 900);
-                scrollControl.CV.addNewWaypoint(0, 0);
-            }
 
             scrollControl.CV.play();
             scrollControl.cinematicViewUpdateCameraMovement();
             */
             //scrollControl.CV.deactivateCVOnDesignationReached(true);
+
+            if(scrollControl.CV.isFullyOutCinematicView())
+                AC.cursorMove(); //So that it doesn't get blended by anything to become invisible;
 
 	        SDL_GL_SwapBuffers( );
 
