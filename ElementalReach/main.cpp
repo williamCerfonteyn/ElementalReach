@@ -3,11 +3,6 @@
 #else
     #include <stdlib.h>
 #endif
-#ifdef __APPLE__
-#include <SDL/SDL.h>
-#else
-#include <SDL.h>
-#endif
 
 //#define flushCout
 
@@ -84,14 +79,23 @@
 #include <GL/glu.h>
 #include <cmath>
 #include <string>
-#include <windows.h>
+
+#ifdef __WIN32__
+	#include <windows.h>
+	#include <SDL.h>
+	#include "SDL_image.h"
+	//My knowledge of sound/music isn't great, so the code could be sloppy.
+	// #include "SDL_mixer.h"
+	#include "SDL_audio.h"
+#else
+	#include <SDL/SDL.h>
+	#include <SDL/SDL_image.h>
+	// #include <SDL/SDL_mixer.h>
+#endif
+
 #include <vector>
 
-#include "SDL_image.h"
-//My knowledge of sound/music isn't great, so the code could be sloppy.
-#include "SDL_mixer.h"
-#include "SDL_audio.h"
-//#include "SDL_sound.h"
+
 
 #include <time.h>
 #include <list>
