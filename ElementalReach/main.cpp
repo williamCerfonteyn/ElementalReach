@@ -146,7 +146,8 @@ freopen("CONIN$", "rb", stdin);
 }
 
 
-#define REMOVE_INTRO_FOR_DEBUGGING
+#define MENU_SYSTEM_ENABLED
+//#define ENABLE_POWER_ELEMENTAL
 
 ///I UNDERSTAND THE PRACTISE OF USING GLOBAL VARIABLES ARE VERY FAULTY, YET I FEEL THERE ARE A PLACE FOR THEM. ONCE I LEARN MORE DYNAMIC AND ADVANCED DESIGN, I WILL PROHIBIT MYSELF FROM
 ///THE TEMPTATION LEADING TO CERTAIN DEATH OF HIGHER LEVEL PROGRAMS.
@@ -173,7 +174,7 @@ int beforeResizeSW = SW;
 int beforeResizeSH = SH;
 
 const int LINE_WIDTH_ = 5;
-const int TextNum = 24; ///Number of textures used.
+const int TextNum = 25; ///Number of textures used.
 
 //Cursor info:
 const int amountOfCursorParts = 5;
@@ -206,8 +207,8 @@ const int scrollingLeverage = 5; //How far to the side does the cursor need to b
 const float scrollSpeed = 5;
 ///
 //FADE SYSTEM information:
- const float amountOfFadeDelay = 0.001;//Delays fade(Time) Seconds.
- const float rateOfFadeIn = 0.00125;//How fast it should fade (Value).
+ const float amountOfFadeDelay = 0.0004;//Delays fade(Time) Seconds.
+ const float rateOfFadeIn = 0.0125;//How fast it should fade (Value).
  const float delayTimeBetweenFade = 2;
 
 //RESOURCES INFO:
@@ -333,6 +334,10 @@ const int gameNameLength = 14; //ELEMENTAL REACH. (14) Used from printing name i
 const int LetterDistanceAtGameNamePrint = 50;
 const int speedOfFadeInForGameNameIntro = 10000;
 const int ambientEffectAmount = 1; //The amount of particles that should give a background ambient fireEffect to the gameName;
+
+//Artificial Intelligence Information:
+const int positionReachedLeverage = 25; //Just to see when air AI has reached the target designation.
+const int maxDistanceToTravelTo = 300; //From air AI that has to use line AI to travel to evade fire.
 
 using namespace std;
 
@@ -1195,6 +1200,7 @@ bool loadTextures()
     if(!(textureImages[21] = IMG_Load("Lightning3Alpha.png"))) return false;
     if(!(textureImages[22] = IMG_Load("MenuBorderButtonsAlpha.png"))) return false;
     if(!(textureImages[23] = IMG_Load("MenuColouredInButtonAlpha.png"))) return false;
+    if(!(textureImages[24] = IMG_Load("Smoothfire_AirAlpha.png"))) return false;
 
     glGenTextures(TextNum, texture);
 
@@ -1852,6 +1858,8 @@ fireTrail::fireTrail()
 
     float tempfireTrailIntensity = fireTrailIntensity;
     float calculateLifeVariableDistribution = 1/tempfireTrailIntensity;
+
+    bool activated;
 
     for(int i = 0; i < fireTrailIntensity; i++)
     {
@@ -4072,6 +4080,101 @@ void powerElemental::animate()
         Print(x-PositionLeftObjectsForInfoText,y-PositionAboveObjectsForInfoText, 1, standardFontSize, true, true, "{%d}", powerParts.size());
 }
 
+class airElemental : public globalFunctions {
+public:
+    airElemental(float,float);
+    void setPositions(float xPos, float yPos) { airX = xPos; airY = yPos; }
+    void AICalculateNextLineMovement();
+    bool checkIfDestinationHasBeenReached();
+    void calculateNewDestinationToTravelTo();
+    void animate();
+protected:
+    fireTrail airTrail;
+    float airX;
+    float airY;
+
+    float directionToMoveToX;
+    float directionToMoveToY;
+};
+
+airElemental::airElemental(float proposedX,float proposedY)
+{
+    airX = proposedX;
+    airY = proposedY;
+
+    directionToMoveToX = proposedX;
+    directionToMoveToY = proposedY;
+
+    //airTrail.fireTrailLength(0.012);
+
+    airTrail.setFireTrailColor(1.0,1.0,1.0);
+    airTrail.setActiveState(true);
+    airTrail.setText(24);
+
+    //airTrail.setFireTrailSize(20);
+}
+
+//also a function that can be written as a more global one - collision check.
+bool airElemental::checkIfDestinationHasBeenReached()
+{
+    if(airX > directionToMoveToX-positionReachedLeverage && airX < directionToMoveToX+positionReachedLeverage)
+        if(airY > directionToMoveToY-positionReachedLeverage && airY < directionToMoveToY+positionReachedLeverage)
+            return true;
+
+    else return false;
+}
+
+void airElemental::calculateNewDestinationToTravelTo()
+{
+    //rand()%maxRand+1 Reference rand function.
+
+    directionToMoveToX += rand()%+maxDistanceToTravelTo*2 - maxDistanceToTravelTo;
+    directionToMoveToY += rand()%+maxDistanceToTravelTo*2 - maxDistanceToTravelTo;
+}
+
+void airElemental::AICalculateNextLineMovement()
+{
+    float calculateDirectionX;
+    float calculateDirectionY;
+
+    float obliqueDistance;
+
+    if(checkIfDestinationHasBeenReached())
+    {
+        calculateNewDestinationToTravelTo();
+    }
+
+    else
+    {
+        calculateDirectionX = directionToMoveToX - airX;
+        calculateDirectionY = directionToMoveToY - airY;
+
+        obliqueDistance = getRadius((airX-directionToMoveToX), (airY-directionToMoveToY));
+
+        calculateDirectionX /= obliqueDistance;
+        calculateDirectionY /= obliqueDistance;
+
+        airX += calculateDirectionX;
+        airY += calculateDirectionY;
+
+        if(airX <= 0 || airX >= worldCordsX || airY <= 0 || airY >= worldCordsY)
+        {
+            airX -= calculateDirectionX;
+            airY -= calculateDirectionX;
+
+            directionToMoveToX = airX;
+            directionToMoveToY = airY;
+        }
+
+    }
+}
+
+void airElemental::animate()
+{
+    AICalculateNextLineMovement();
+    airTrail.showFireTrail(airX,airY);
+}
+
 class button {
 public:
     button(float tx, float ty, float txDist, float tyDist, char *txt, bool);
@@ -4167,7 +4270,7 @@ void button::drawButton()
     glDisable(GL_BLEND);
 
     if(variableFadeIn < 1 && !hasGameStartedYet)
-        variableFadeIn+= 0.001;
+        variableFadeIn+= 0.002;
 
     else notFullyFadedInYet = true;
 
@@ -4177,7 +4280,7 @@ void button::drawButton()
     else Print(indentionOnTextToButton,y-8,1,standardFontSize, true, true, textOnButton);
 
     if(hasGameStartedYet && variableFadeIn > 0)
-        variableFadeIn -= 0.001;
+        variableFadeIn -= 0.004;
 }
 
 class menuSystem {
@@ -4202,7 +4305,7 @@ menuSystem::menuSystem()
     letGameStart = false;
     menuSystemDisabled = false;
 
-    delayMenuPopup.setDelayMili(8000);
+    delayMenuPopup.setDelayMili(4000);
     delayMenuPopup.setDelayAsEventBased();
     delayMenuPopup.startClock();
 
@@ -4301,7 +4404,7 @@ preGameSystem::preGameSystem()
     MS = new menuSystem;
 
     preGameSystemActivated = false;
-    #ifdef REMOVE_INTRO_FOR_DEBUGGING //Used define, because it stands out of the other ifs.
+    #ifdef MENU_SYSTEM_ENABLED //Used define, because it stands out of the other ifs.
     preGameSystemActivated = true;
     #endif
 
@@ -4522,7 +4625,9 @@ void mouseEvents(SDL_Event *eventx, fireElemental *FE, menuSystem *MS)
 
     if(eventx->button.button == SDL_BUTTON_LEFT)
     {
+        #ifdef MENU_SYSTEM_ENABLED
         MS->mouseButtonLeftClicked(true);
+        #endif
         FE->fireChainConstruction(mx,my);
         FE->passLeftMouseButtonState(true); ///THE POSITION OF THIS LINE RELATIVE TO THE CASTSPELLTHROUGHNODE ONE, DOES MATTER! IF BELOW, WE PROBABLY HAVE A LITTLE DELAY ON CASTING(GUESS).
         FE->nodeSelectionToCheck(mx, my);
@@ -4536,7 +4641,9 @@ void mouseEvents(SDL_Event *eventx, fireElemental *FE, menuSystem *MS)
 
 void mouseUp(SDL_Event *eventx, fireElemental *FE, resourceSystem *RS, menuSystem *MS)
 {
+    #ifdef MENU_SYSTEM_ENABLED
     MS->mouseButtonLeftClicked(false);
+    #endif
     FE->fireChainFinished(RS);
     FE->passLeftMouseButtonState(false);
 
@@ -4677,11 +4784,11 @@ void buildGame(resourceSystem *RS, fireElemental *FEx, rogueParts *RPx, powerEle
 class gameController {
 public:
     //gameController();
-    void controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe);
+    void controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe, airElemental *);
 private:
 };
 
-void gameController::controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe)
+void gameController::controlGame(resourceSystem *rs, fireElemental *fe, rogueParts *rp, powerElemental *pe, airElemental *ai)
 {
     //Cursor was removed because its also needed in the menu system.
     fe->updates();
@@ -4691,19 +4798,29 @@ void gameController::controlGame(resourceSystem *rs, fireElemental *fe, roguePar
     rp->animation();
     rs->animates();
 
+    ai->animate();
+
+    #ifdef ENABLE_POWER_ELEMENTAL
     if(pe->stillAlive())
         pe->reduceHealth(fe->observeIfKillPartsFromNCCollided(pe->passX(),pe->passY()));
 
     pe->animate();
+    #endif
 
     if(!fe->fireElementalDead())
     {
+        #ifdef ENABLE_POWER_ELEMENTAL
         pe->getFireElemPositionAndSizeInfoAI(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem());
         pe->castLightningStrike();
+        #endif
     }
 
+    #ifdef ENABLE_POWER_ELEMENTAL
     if(pe->hasLightningStruckYet())
         fe->reduceHealth(pe->lightningHasStruck(fe->getPositionX(), fe->getPositionY(), fe->getSizeOfFireElem()));
+    #endif
+
+
 
     //if(fe->fireElementalDead() || !pe->stillAlive())
     //{
@@ -4792,11 +4909,13 @@ int main (int argc, char** argv)
     rogueParts *RPx;
     powerElemental *PEx;
     resourceSystem *RS;
+    airElemental *AIx;
 
     RS = new resourceSystem;
     FEx = new fireElemental;
     RPx = new rogueParts;
     PEx = new powerElemental;
+    AIx = new airElemental(400,400);
 
     //buildGame(RS, FEx, RPx, PEx);
     //resetGame(RS, FEx, RPx, PEx);
@@ -5003,7 +5122,7 @@ int main (int argc, char** argv)
           //  }
 
             if(!PGS.preGameSystemStillInEffect())
-                GC.controlGame(RS, FEx, RPx, PEx);
+                GC.controlGame(RS, FEx, RPx, PEx, AIx);
 
             else if(PGS.preGameSystemStillInEffect())
                 PGS.animate(&fadeSystem); //Since it uses a global variable it is not neccesary to pass a pointer, but we do anyway.
@@ -5031,7 +5150,9 @@ int main (int argc, char** argv)
             LFR.displayRealFramesPerSecond();
             scrollControl.shakeCamera();
 
+            #ifdef MENU_SYSTEM_ENABLED
             PGS.MS->drawMenu(&fadeSystem);
+            #endif
             /*
 
             scrollControl.CV.play();
