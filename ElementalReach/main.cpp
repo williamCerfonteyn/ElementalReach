@@ -1825,19 +1825,22 @@ void explosiveIgnition::showExplosion()
 
 }
 
+//Redesinged this to a linked list because of the air elemental. IT might only be one class, but it has a huge emphesis on the addition and removal of fireTrail particles.
 class fireTrail {
 public:
-    fireTrail();
+    fireTrail(int TPRCO);
     void showFireTrail(float,float);
+    void setFireTrailParticleAmount(int );
    // void setfireTrailPosition(float x, float y) { FTx = x; FTy = y; }
     void fireTrailLength(float fadingTrail) { trailFade = fadingTrail; }
-    void setFireTrailColor(float r, float g, float b) { for(int i = 0; i < fireTrailIntensity; i++) fireTrailParts[i]->setColor(r, g, b); }
-    void setFireTrailSize(float SS) { for(int i = 0; i < fireTrailIntensity; i++) fireTrailParts[i]->setSize(SS); }
+    void setFireTrailColor(float r, float g, float b);
+    void setFireTrailSize(float SS);
     void setActiveState(bool Act) { activated = Act; }
-    void setText(int textureToUse) { for(int i = 0; i < fireTrailIntensity; i++) fireTrailParts[i]->setTexture(textureToUse); }
+    void setText(int textureToUse);
 protected:
-    particle *fireTrailParts[fireTrailIntensity];
+    list<particle> fireTrailParts;
     float trailFade;
+    int totalParticlesTrailConsistsOf;
     //float colorR;
     //float colorG;
     //float colorB;
@@ -1846,13 +1849,39 @@ protected:
     bool activated;
 };
 
-fireTrail::fireTrail()
+void fireTrail::setFireTrailColor(float r, float g, float b)
+{
+    for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
+    {
+        it->setColor(r, g, b);
+    }
+}
+
+void fireTrail::setFireTrailSize(float SS)
+{
+    for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
+    {
+        it->setSize(SS);
+    }
+}
+
+void fireTrail::setText(int textureToUse)
+{
+    for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
+    {
+        it->setTexture(textureToUse);
+    }
+}
+
+fireTrail::fireTrail(int TPRCO = fireTrailIntensity)
 {
     //colorR = fireTrailStandardColorR;
     //colorG = fireTrailStandardColorG;
     //colorB = fireTrailStandardColorB;
     //fireTrailSizeVar = sizeOfFireTrail;
     activated = true;
+
+    totalParticlesTrailConsistsOf = TPRCO;
 
     trailFade = standardFireTrailFade;
 
@@ -1861,17 +1890,20 @@ fireTrail::fireTrail()
 
     bool activated;
 
-    for(int i = 0; i < fireTrailIntensity; i++)
+    particle tempPartX;
+
+    for(int i = 0; i < totalParticlesTrailConsistsOf; i++)
     {
-        fireTrailParts[i] = new particle;
-        fireTrailParts[i]->activate(true);
-        fireTrailParts[i]->setTexture(17);
-        fireTrailParts[i]->setSize(sizeOfFireTrail);
-        fireTrailParts[i]->setColor(fireTrailStandardColorR, fireTrailStandardColorG, fireTrailStandardColorB);
-        fireTrailParts[i]->setLife(i*calculateLifeVariableDistribution*fireTrailOpaquecy); //So that each one has a differnt life, so that we have continious trail and its equal.
-        fireTrailParts[i]->position(-100,-100); //Out of screen so that everything stababilzes in the screen.
+        tempPartX.activate(true);
+        tempPartX.setTexture(17);
+        tempPartX.setSize(sizeOfFireTrail);
+        tempPartX.setColor(fireTrailStandardColorR, fireTrailStandardColorG, fireTrailStandardColorB);
+        tempPartX.setLife(i*calculateLifeVariableDistribution*fireTrailOpaquecy); //So that each one has a differnt life, so that we have continious trail and its equal.
+        tempPartX.position(-100,-100); //Out of screen so that everything stababilzes in the screen.
         //cout << i << endl;
-        fireTrailParts[i]->setFade(trailFade);
+        tempPartX.setFade(trailFade);
+
+        fireTrailParts.push_back(tempPartX);
     }
 }
 
@@ -1879,16 +1911,16 @@ void fireTrail::showFireTrail(float posX, float posY) //Consistently needs to up
 {
     if(activated)
     {
-        for(int i = 0; i < fireTrailIntensity; i++)
+        for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
         {
-            if(fireTrailParts[i]->Rlife() > 0)
-                fireTrailParts[i]->move();
+            if(it->Rlife() > 0)
+                it->move();
 
             else
             {
-                fireTrailParts[i]->setLife(fireTrailOpaquecy);
-                fireTrailParts[i]->setFade(trailFade);
-                fireTrailParts[i]->position(posX,posY);
+                it->setLife(fireTrailOpaquecy);
+                it->setFade(trailFade);
+                it->position(posX,posY);
             }
         }
     }
