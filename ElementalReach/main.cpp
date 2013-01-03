@@ -1830,7 +1830,9 @@ class fireTrail {
 public:
     fireTrail(int TPRCO);
     void showFireTrail(float,float);
-    void setFireTrailParticleAmount(int );
+    void pushParticleToTrail();
+    void popParticleFromTrail();
+    //void addParticlesToTrail(int amount); Will be implemented if neccesary.
    // void setfireTrailPosition(float x, float y) { FTx = x; FTy = y; }
     void fireTrailLength(float fadingTrail) { trailFade = fadingTrail; }
     void setFireTrailColor(float r, float g, float b);
@@ -1841,19 +1843,49 @@ protected:
     list<particle> fireTrailParts;
     float trailFade;
     int totalParticlesTrailConsistsOf;
-    //float colorR;
-    //float colorG;
-    //float colorB;
-    //float fireTrailSizeVar;
+
+    float colorR;
+    float colorG;
+    float colorB;
+    float fireTrailSizeVar;
+    int textToUse;
 
     bool activated;
 };
+
+void fireTrail::pushParticleToTrail() //General addition.
+{
+    float randLife;
+    int tempRandLife = rand()%1000; //This 1000 is really not neccesary to be able to modify, it's simply to refine the life values to smaller digits.
+
+    randLife = tempRandLife/1000;
+
+    particle tempPartX;
+
+    tempPartX.activate(true);
+    tempPartX.setTexture(textToUse);
+    tempPartX.setSize(fireTrailSizeVar);
+    tempPartX.setColor(colorR, colorG, colorB);
+    tempPartX.setLife(randLife); //So that each one has a differnt life, so that we have continious trail and its equal.
+    tempPartX.position(-100,-100); //Out of screen so that everything stababilzes in the screen.
+    tempPartX.setFade(trailFade);
+
+    fireTrailParts.push_back(tempPartX);
+}
+
+void fireTrail::popParticleFromTrail()
+{
+    fireTrailParts.pop_back();
+}
 
 void fireTrail::setFireTrailColor(float r, float g, float b)
 {
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setColor(r, g, b);
+        colorR = r;
+        colorG = g;
+        colorB = b;
     }
 }
 
@@ -1862,6 +1894,7 @@ void fireTrail::setFireTrailSize(float SS)
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setSize(SS);
+        fireTrailSizeVar = SS;
     }
 }
 
@@ -1870,6 +1903,7 @@ void fireTrail::setText(int textureToUse)
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setTexture(textureToUse);
+        textToUse = textureToUse;
     }
 }
 
