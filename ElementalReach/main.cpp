@@ -97,6 +97,7 @@
 #include <list>
 
 #define GL_BGR 0x80e0
+#define PI 3.14159265
 /* Very NB stuff.
 Vec2f cursor_pos = get_cursor_pos();
 Vec2f elemental_pos = get_elemental_pos();
@@ -174,7 +175,7 @@ int beforeResizeSW = SW;
 int beforeResizeSH = SH;
 
 const int LINE_WIDTH_ = 5;
-const int TextNum = 25; ///Number of textures used.
+const int TextNum = 26; ///Number of textures used.
 
 //Cursor info:
 const int amountOfCursorParts = 5;
@@ -320,6 +321,17 @@ const float delayBetweenLightningStrikes = 3000; //Miliseconds. Time between eac
 const float damageOfLightningStrike = 70;
 const float howLongTillLightningStrikesFromActivation = 500; //Miliseconds
 
+//AIR ELEMENTAL INFo:
+const float standardDifferentiatedAccelarationSpeedForAirElemental = 0.0001;
+const int delayForCalculationOfValuesForAirElemental = 1; //Things like movementSpeed updated, collision checks ect. Just delaying for performance. Miliseconds.
+const float standardMovementRequiredToIncreaseAirElementalPower = 500;
+//const float modifyFadingReadjustedmentAmountForAdditionalParticles = 4; //The factor at which fading will be reduced as particles are added.
+const float movementSpeedCappedValue = 7.0;
+///NO NOT REMOVE THE SQUARE ROOT FROM THE VALUE, SIMPLE MODIFIY THE MOVEMENTSPEED (THE INNER VALUE OF THE FUNCTION).
+const float windFuryBaseValue = sqrt(1); //The movement speed value at which no wind fury is either gained, nor lossed. Go to the function to mod how wind fury is gained ect.
+const float baseAccelerationValue = 0.05;
+const float modifierValueForAccelerationAddition = 100000; //Higher value means less windFury.
+
 //IntroSystem (Part of preGameSystems)
 const int IntroParticleSaturation = 300; //Very similar to rogue parts on the map, just intro version.
 const int maxSpeedIntroParticlesCanMove = 10; //How fast they will swirl about the map. :)
@@ -336,8 +348,9 @@ const int speedOfFadeInForGameNameIntro = 10000;
 const int ambientEffectAmount = 1; //The amount of particles that should give a background ambient fireEffect to the gameName;
 
 //Artificial Intelligence Information:
-const int positionReachedLeverage = 25; //Just to see when air AI has reached the target designation.
-const int maxDistanceToTravelTo = 300; //From air AI that has to use line AI to travel to evade fire.
+const int positionReachedLeverage = 50; //Just to see when air AI has reached the target designation.
+const int maxDistanceToTravelTo = 1200; //From air AI that has to use line AI to travel to evade fire.
+const int timeTakenToRepositionDesignation = 15;
 
 using namespace std;
 
@@ -1201,6 +1214,7 @@ bool loadTextures()
     if(!(textureImages[22] = IMG_Load("MenuBorderButtonsAlpha.png"))) return false;
     if(!(textureImages[23] = IMG_Load("MenuColouredInButtonAlpha.png"))) return false;
     if(!(textureImages[24] = IMG_Load("Smoothfire_AirAlpha.png"))) return false;
+    if(!(textureImages[25] = IMG_Load("markAlpha.png"))) return false;
 
     glGenTextures(TextNum, texture);
 
@@ -1832,17 +1846,21 @@ public:
     void showFireTrail(float,float);
     void pushParticleToTrail();
     void popParticleFromTrail();
-    //void addParticlesToTrail(int amount); Will be implemented if neccesary.
+    void adjustParticleFadingToNewAmount();
+    void pushAmountParticlesToTrail(int amount);
    // void setfireTrailPosition(float x, float y) { FTx = x; FTy = y; }
     void fireTrailLength(float fadingTrail) { trailFade = fadingTrail; }
     void setFireTrailColor(float r, float g, float b);
     void setFireTrailSize(float SS);
     void setActiveState(bool Act) { activated = Act; }
     void setText(int textureToUse);
+
+    //float trailFadeReturnTemp() { return trailFade; }
+    float sizeOfTrail() { return fireTrailParts.size(); }
 protected:
     list<particle> fireTrailParts;
     float trailFade;
-    int totalParticlesTrailConsistsOf;
+    int totalParticlesTrailConsistsOf; ///ONLY USED IN THE BEGINNING. SIZE IS USED FURTHER. MAY BE IMPROVED AT A LATER STAGE.
 
     float colorR;
     float colorG;
@@ -1850,13 +1868,47 @@ protected:
     float fireTrailSizeVar;
     int textToUse;
 
+    float controlValueToManageFade;
+
     bool activated;
 };
+
+void fireTrail::pushAmountParticlesToTrail(int amount)
+{
+    float randLife;
+    float tempRandLife;
+
+    for(int i = 0; i < amount; i++)
+    {
+        tempRandLife = rand()%1000; //This 1000 is really not neccesary to be able to modify, it's simply to refine the life values to smaller digits.
+        randLife = tempRandLife/1000;
+
+        particle tempPartX;
+
+        tempPartX.activate(true);
+        tempPartX.setTexture(textToUse);
+        tempPartX.setSize(fireTrailSizeVar);
+        tempPartX.setColor(colorR, colorG, colorB);
+        tempPartX.setLife(randLife); //So that each one has a differnt life, so that we have continious trail and its equal.
+        tempPartX.position(-100,-100); //Out of screen so that everything stababilzes in the screen.
+        tempPartX.setFade(trailFade);
+
+        fireTrailParts.push_back(tempPartX);
+    }
+}
+
+void fireTrail::adjustParticleFadingToNewAmount()
+{
+    trailFade = controlValueToManageFade/fireTrailParts.size();
+
+    for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
+        it->setFade(trailFade);
+}
 
 void fireTrail::pushParticleToTrail() //General addition.
 {
     float randLife;
-    int tempRandLife = rand()%1000; //This 1000 is really not neccesary to be able to modify, it's simply to refine the life values to smaller digits.
+    float tempRandLife = rand()%1000; //This 1000 is really not neccesary to be able to modify, it's simply to refine the life values to smaller digits.
 
     randLife = tempRandLife/1000;
 
@@ -1880,30 +1932,33 @@ void fireTrail::popParticleFromTrail()
 
 void fireTrail::setFireTrailColor(float r, float g, float b)
 {
+    colorR = r;
+    colorG = g;
+    colorB = b;
+
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setColor(r, g, b);
-        colorR = r;
-        colorG = g;
-        colorB = b;
     }
 }
 
 void fireTrail::setFireTrailSize(float SS)
 {
+    fireTrailSizeVar = SS;
+
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setSize(SS);
-        fireTrailSizeVar = SS;
     }
 }
 
 void fireTrail::setText(int textureToUse)
 {
+    textToUse = textureToUse;
+
     for(list<particle>::iterator it = fireTrailParts.begin(); it != fireTrailParts.end(); it++)
     {
         it->setTexture(textureToUse);
-        textToUse = textureToUse;
     }
 }
 
@@ -1924,10 +1979,11 @@ fireTrail::fireTrail(int TPRCO = fireTrailIntensity)
 
     bool activated;
 
-    particle tempPartX;
 
     for(int i = 0; i < totalParticlesTrailConsistsOf; i++)
     {
+        particle tempPartX; //So that rotation is different for each one.
+
         tempPartX.activate(true);
         tempPartX.setTexture(17);
         tempPartX.setSize(sizeOfFireTrail);
@@ -1939,6 +1995,8 @@ fireTrail::fireTrail(int TPRCO = fireTrailIntensity)
 
         fireTrailParts.push_back(tempPartX);
     }
+
+    controlValueToManageFade = trailFade*fireTrailParts.size();
 }
 
 void fireTrail::showFireTrail(float posX, float posY) //Consistently needs to update to a certain point, so makes sence consistently passing the neccesary positions.
@@ -4151,16 +4209,54 @@ public:
     airElemental(float,float);
     void setPositions(float xPos, float yPos) { airX = xPos; airY = yPos; }
     void AICalculateNextLineMovement();
+    void handleMovement();
+    //void obtainCoordinatesOfEnemy(float xC, float yC) {enemyXC = xC; enemyYC = yC; }
     bool checkIfDestinationHasBeenReached();
     void calculateNewDestinationToTravelTo();
+    void showPositionAIMovesTo();
     void animate();
 protected:
     fireTrail airTrail;
+    delaySome calculationTickDelay;
+    delaySome repositionDesignation;
+
+    void calculateMovementSpeed(); //Could be moved to public if neccesary.
+    void increasePowerThroughMovementSpeed();
+    float calculateAirFriction();
+    float AirFrictionRelevantValueCoefficient();
+
+    float calculateDirectionX; //Used in the calculations to determine how to move to a desingnation.
+    float calculateDirectionY;
+
     float airX;
     float airY;
 
+    float pretendedMomentumX; //Not exactly momentum, but acts very much in the same regard.
+    float pretendedMomentumY;
+
+    float previousX; //Used for calculating movementSpeed;
+    float previousY;
+
+    float movementSpeed;
+    float timeTakenToTravel;
+
+    float concatenatedMovementSpeed; //Used for increasing the power/number of parts for the airElemental based on the movementSpeed;
+
+    float airFrictionCoefficientValue;
+    float effectiveAirFrictionCoefficientModifier; //Modified by a fancy function.
+
+    //float enemyXC;
+    //float enemyYC;
+
+    float accelerationSpeed;
+
     float directionToMoveToX;
     float directionToMoveToY;
+
+    float testValue1;
+    float testValue2;
+    float testValue3;
+    float testValue4;
 };
 
 airElemental::airElemental(float proposedX,float proposedY)
@@ -4168,16 +4264,100 @@ airElemental::airElemental(float proposedX,float proposedY)
     airX = proposedX;
     airY = proposedY;
 
+    pretendedMomentumX = 0;
+    pretendedMomentumY = 0;
+
+    airFrictionCoefficientValue = 0;
+    effectiveAirFrictionCoefficientModifier = 0;
+
+    calculationTickDelay.setDelayMili(delayForCalculationOfValuesForAirElemental);
+    calculationTickDelay.startClock();
+
+    repositionDesignation.setDelay(timeTakenToRepositionDesignation);
+    repositionDesignation.startClock();
+
+    timeTakenToTravel = delayForCalculationOfValuesForAirElemental;
+
+    accelerationSpeed = baseAccelerationValue;
+
+    accelerationSpeed = 0; //0.05
+
     directionToMoveToX = proposedX;
     directionToMoveToY = proposedY;
 
     //airTrail.fireTrailLength(0.012);
+
+    //airTrail.pushAmountParticlesToTrail(100);
 
     airTrail.setFireTrailColor(1.0,1.0,1.0);
     airTrail.setActiveState(true);
     airTrail.setText(24);
 
     //airTrail.setFireTrailSize(20);
+}
+
+//Used to calculate airFriction based upon movement and acceleration. Important for turning around or changing direction using the current air friction model.
+float airElemental::AirFrictionRelevantValueCoefficient()
+{
+    //The value which air friction will be decreased. The percentage at which AF will reduce.
+    float airFrictionAdjustmentValue;
+    float radiansDifference;
+    float cosineValue; //Variable declared, because it seems that (weirdly enough) this value can sometimes just just above one, obviously causing quite some problems. This prohibits that.
+                        //This is not because of fail programming (I think) it's simply that the value sometimes jumps just above 1, maybe because of ronding or something.
+
+    float calculatedEffectiveAirFriction; //The value that will be returned. Tests are run on this, as the start of this prosedure could pose buggy, we add an additional protection layer.
+
+    //These values are used to see which direction our acceleration wants our position to move.
+    //We use previousX/Y values to keep it constant.
+    float accelerationPosX = previousX + calculateDirectionX*pow((accelerationSpeed),2);
+    float accelerationPosY = previousY + calculateDirectionY*pow((accelerationSpeed),2);
+
+    float differentiatedPosition = getRadius(previousX-airX, previousY-airY);
+    float differentiatedAccelerationPosition = getRadius(previousX-accelerationPosX, previousY-accelerationPosY);
+    float linkingLine = getRadius(airX-accelerationPosX, airY-accelerationPosY);
+
+    if(abs(differentiatedPosition - differentiatedAccelerationPosition) != linkingLine || (differentiatedPosition + differentiatedAccelerationPosition) != linkingLine)
+    {
+        cosineValue = (pow(differentiatedPosition, 2) + pow(differentiatedAccelerationPosition, 2) - pow(linkingLine, 2))/(2*differentiatedPosition*differentiatedAccelerationPosition);
+
+        if(cosineValue > 1)
+            cosineValue = 1;
+
+        radiansDifference = acos(cosineValue);
+    }
+
+    else if(abs(differentiatedPosition - differentiatedAccelerationPosition) == linkingLine)
+        radiansDifference = 0;
+
+    else if((differentiatedPosition + differentiatedAccelerationPosition) == linkingLine)
+        radiansDifference = PI/2; //Actually PI, but it normalises to PI/2 anyway.
+
+    //Used to make sure anything over PI/2 remains at 1 - the value for complete AF ignore.
+    if(radiansDifference > (PI/2))
+        radiansDifference = PI/2;
+
+    //Modified by a sin function. This is an experiment, if it proves false, remove the sin to make AF a linear decrease.
+    airFrictionAdjustmentValue = sin(radiansDifference);
+
+    if(airFrictionCoefficientValue > 0)
+        calculatedEffectiveAirFriction = ((1-((1-airFrictionCoefficientValue)*(1-airFrictionAdjustmentValue)))/airFrictionCoefficientValue);
+
+    //For this condition to be true, acceleration and movementSpeed wil most likely be in the same direction, causing the MS cap to be reached, thus we should probably have this value extend
+    //full all friction, and have nothing of it ignored, otherwise the MS cap will be exceeded.
+    else calculatedEffectiveAirFriction = 1;
+
+    //Calculating the real value of airFriction.
+    //Return the coefficient that needs to be multiplied to AF to get have it be the proper value.
+
+    testValue1 = radiansDifference;
+    testValue2 = airFrictionAdjustmentValue;
+    testValue3 = calculatedEffectiveAirFriction;
+    testValue4 = pow(differentiatedPosition, 2) + pow(differentiatedAccelerationPosition, 2) - pow(linkingLine, 2);
+
+    if(airFrictionAdjustmentValue >= 0 && airFrictionAdjustmentValue <= 1 && calculatedEffectiveAirFriction >= 1)
+        return calculatedEffectiveAirFriction;
+    else //Something went from with the calculations (could be minor), so ignore this iteration and pass no airFriction reduction.
+        return 1;
 }
 
 //also a function that can be written as a more global one - collision check.
@@ -4196,48 +4376,166 @@ void airElemental::calculateNewDestinationToTravelTo()
 
     directionToMoveToX += rand()%+maxDistanceToTravelTo*2 - maxDistanceToTravelTo;
     directionToMoveToY += rand()%+maxDistanceToTravelTo*2 - maxDistanceToTravelTo;
+
+    while(directionToMoveToX < 0)
+        directionToMoveToX += rand()%+maxDistanceToTravelTo;
+
+    while(directionToMoveToX > worldCordsX)
+        directionToMoveToX += rand()%+maxDistanceToTravelTo - maxDistanceToTravelTo*2;
+
+    while(directionToMoveToY < 0)
+        directionToMoveToY += rand()%+maxDistanceToTravelTo;
+
+    while(directionToMoveToY > worldCordsY)
+        directionToMoveToY += rand()%+maxDistanceToTravelTo - maxDistanceToTravelTo*2;
+}
+
+void airElemental::showPositionAIMovesTo()
+{
+    glLoadIdentity();
+    glColor4f(1.0,1.0,1.0, GLOBAL_VISIBILITY_OF_GAME_CONTENTS);
+    glEnable(GL_BLEND);
+
+    glBindTexture(GL_TEXTURE_2D, texture[25]);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(directionToMoveToX-25), scrollControl.drawInRelationToScreenY(directionToMoveToY-25), 0.0);
+    glTexCoord2f(1.0,0.0); glVertex3f(scrollControl.drawInRelationToScreenX(directionToMoveToX+25), scrollControl.drawInRelationToScreenY(directionToMoveToY-25), 0.0);
+    glTexCoord2f(1.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(directionToMoveToX+25), scrollControl.drawInRelationToScreenY(directionToMoveToY+25), 0.0);
+    glTexCoord2f(0.0,1.0); glVertex3f(scrollControl.drawInRelationToScreenX(directionToMoveToX-25), scrollControl.drawInRelationToScreenY(directionToMoveToY+25), 0.0);
+    glEnd();
+}
+
+float airElemental::calculateAirFriction()
+{
+    float multiplierForDecreasedMovementSpeedAddition;
+    //float tempVal = movementSpeedCappedValue;
+   // float furtherCalcTempVal = movementSpeed/tempVal;
+
+    //calculateMovementSpeed(airFrictionCoefficientValue);
+
+    multiplierForDecreasedMovementSpeedAddition = -pow((movementSpeed/movementSpeedCappedValue),2) + 1;
+
+    if(multiplierForDecreasedMovementSpeedAddition < 0)
+    {
+        //exit(0);
+        multiplierForDecreasedMovementSpeedAddition = 0;
+    }
+
+    //Thought of using a hyperbolic function to moddel friction was thought of, but the relation between MS reduction between different MS levels was difficult to balance.
+    //A parabolic approch with an unfortunate if statement is what followed.
+
+    return multiplierForDecreasedMovementSpeedAddition;
 }
 
 void airElemental::AICalculateNextLineMovement()
 {
-    float calculateDirectionX;
-    float calculateDirectionY;
+    previousX = airX;
+    previousY = airY;
 
     float obliqueDistance;
 
-    if(checkIfDestinationHasBeenReached())
+    if(checkIfDestinationHasBeenReached() || repositionDesignation.isDelayOver())
     {
+        //airTrail.pushParticleToTrail();
+        //airTrail.adjustParticleFadingToNewAmount();
         calculateNewDestinationToTravelTo();
+        repositionDesignation.stopClock();
+        repositionDesignation.startClock();
     }
 
     else
     {
-        calculateDirectionX = directionToMoveToX - airX;
-        calculateDirectionY = directionToMoveToY - airY;
-
-        obliqueDistance = getRadius((airX-directionToMoveToX), (airY-directionToMoveToY));
-
-        calculateDirectionX /= obliqueDistance;
-        calculateDirectionY /= obliqueDistance;
-
-        airX += calculateDirectionX;
-        airY += calculateDirectionY;
-
         if(airX <= 0 || airX >= worldCordsX || airY <= 0 || airY >= worldCordsY)
         {
-            airX -= calculateDirectionX;
-            airY -= calculateDirectionX;
+            //pretendedMomentumX = 0;
+           // pretendedMomentumY = 0;
+           // airX-=calculateDirectionX*pow((accelerationSpeed),2)*2;
+           // airY-=calculateDirectionY*pow((accelerationSpeed),2)*2;
 
-            directionToMoveToX = airX;
-            directionToMoveToY = airY;
+            airX = previousX-pretendedMomentumX;
+            airY = previousY-pretendedMomentumY;
+            pretendedMomentumX = 0;
+            pretendedMomentumY = 0;
+
+            calculateNewDestinationToTravelTo();
         }
 
     }
+
+    //Needs to be calculated here to accomodate the momentum change, so that the represented line is recalculated even with innertia prohibiting the orginal line as correct.
+    calculateDirectionX = directionToMoveToX - airX;
+    calculateDirectionY = directionToMoveToY - airY;
+
+    obliqueDistance = getRadius((airX-directionToMoveToX), (airY-directionToMoveToY));
+
+    calculateDirectionX /= obliqueDistance;
+    calculateDirectionY /= obliqueDistance;
+
+    //This might seem odd, but the values should never rise above one, effectively trading uses between sqrt and power.
+    pretendedMomentumX += effectiveAirFrictionCoefficientModifier*airFrictionCoefficientValue*calculateDirectionX*pow((accelerationSpeed),2); //If CD is also included, no directional indicator remains, and AS is no longer a coefficient-modding value.
+    pretendedMomentumY += effectiveAirFrictionCoefficientModifier*airFrictionCoefficientValue*calculateDirectionY*pow((accelerationSpeed),2);
+
+    airX += pretendedMomentumX;
+    airY += pretendedMomentumY;
+}
+
+void airElemental::calculateMovementSpeed()
+{
+    float distanceTravelled = getRadius(previousX-airX, previousY-airY);
+
+    movementSpeed = distanceTravelled/timeTakenToTravel;
+}
+
+void airElemental::handleMovement()
+{
+    airFrictionCoefficientValue = calculateAirFriction();
+    effectiveAirFrictionCoefficientModifier = AirFrictionRelevantValueCoefficient();
+
+    accelerationSpeed += sqrt(movementSpeed)/modifierValueForAccelerationAddition - windFuryBaseValue/modifierValueForAccelerationAddition;
+
+    if(accelerationSpeed < baseAccelerationValue)
+        accelerationSpeed = baseAccelerationValue;
+}
+
+void airElemental::increasePowerThroughMovementSpeed()
+{
+    concatenatedMovementSpeed += movementSpeed;
+
+    if(concatenatedMovementSpeed > standardMovementRequiredToIncreaseAirElementalPower)
+    {
+        concatenatedMovementSpeed = 0;
+        airTrail.pushParticleToTrail();
+        airTrail.adjustParticleFadingToNewAmount();
+    }
+
 }
 
 void airElemental::animate()
 {
-    AICalculateNextLineMovement();
+    showPositionAIMovesTo();
+
+    if(calculationTickDelay.isDelayOver())
+    {
+        calculateMovementSpeed();
+        handleMovement(); //This function is here instead of in AICalcNLM (^) because we will need this for humans aswell, though it will probably differ.
+        increasePowerThroughMovementSpeed();
+        AICalculateNextLineMovement();
+    }
+
+
+
+    //Print(airX, airY-210, 1, standardFontSize, false, true, "%f", effectiveAirFrictionCoefficientModifier);
+
+    Print(airX, airY-170, 1, standardFontSize, false, true, "%f", accelerationSpeed - baseAccelerationValue);
+
+    //calculateMovementSpeed(airFrictionCoefficientValue);
+    Print(airX, airY-130, 1, standardFontSize, false, true, "%f", accelerationSpeed);
+
+    //calculateMovementSpeed();
+    Print(airX, airY-80, 1, standardFontSize, false, true, "%f", movementSpeed);
+
+    //Print(airX, airY-50, 1, standardFontSize, false, true, "%f", effectiveAirFrictionCoefficientModifier);
+
     airTrail.showFireTrail(airX,airY);
 }
 
@@ -4981,7 +5279,7 @@ int main (int argc, char** argv)
     FEx = new fireElemental;
     RPx = new rogueParts;
     PEx = new powerElemental;
-    AIx = new airElemental(400,400);
+    AIx = new airElemental(600,600);
 
     //buildGame(RS, FEx, RPx, PEx);
     //resetGame(RS, FEx, RPx, PEx);
